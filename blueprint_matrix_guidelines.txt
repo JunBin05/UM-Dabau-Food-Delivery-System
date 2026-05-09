@@ -1,0 +1,73 @@
+UM-DABAU BLUEPRINT MATRIX
+================================================================================
+This document defines the domain ownership, purpose, and integration points 
+for every class in the UM-Dabau Smart Food Delivery System.
+
+🚨 GOLDEN RULE: You have absolute control over the files you OWN. You are 
+strictly forbidden from modifying classes owned by others. If you need a new 
+variable in someone else's class, communicate with them directly.
+================================================================================
+
+PART 1: SHARED DOMAIN MODELS (/models/)
+--------------------------------------------------------------------------------
+These are the foundational entities of the system. 
+
+1. User.java
+- Purpose: Represents the core identity. Holds rider states (isAvailable, currentNodeId).
+- Owner: Vincent (Frontend & State)
+- Consumers: Norman (stores in UserHashMap), JunJing (reads for RiderHeap score).
+
+2. Restaurant.java
+- Purpose: Represents a food vendor and origin point for routing.
+- Owner: Vincent (Frontend & State)
+- Consumers: JunBin (reads nodeId for Dijkstra starting point).
+
+3. MenuItem.java
+- Purpose: Represents food. Contains category string for sorting.
+- Owner: Norman (Catalog & Retrieval)
+- Consumers: Vincent (renders UI), JunJing (pushes/pops from CartStack).
+
+4. Order.java
+- Purpose: The master payload. Holds customer, restaurant, CartStack, and status.
+- Owner: JunJing (Order Processing)
+- Consumers: EVERYONE. (UI sends it, Queue holds it, Heap pairs it, Graph routes it).
+
+5. GraphNode.java
+- Purpose: Physical waypoints on UM campus (Latitude/Longitude).
+- Owner: JunBin (Architect)
+- Consumers: Vincent (reads GPS to drop map pins).
+
+6. RouteSummary.java
+- Purpose: Packaged output of Dijkstra (path array, distance, ETA).
+- Owner: JunBin (Architect)
+- Consumers: Vincent (draws glowing line on the map).
+
+
+PART 2: CUSTOM DATA STRUCTURES (/datastructures/)
+--------------------------------------------------------------------------------
+These are the algorithmic engines. ONLY the owner should ever touch these files.
+
+🧑‍💻 VINCENT'S DOMAIN (State Management)
+1. RestaurantList.java & UserList.java
+- Purpose: Custom Linked Lists built from scratch to hold the active database 
+  of users and restaurants without using java.util.ArrayList.
+
+🧑‍💻 NORMAN'S DOMAIN (Search & Retrieval)
+2. MenuBST.java
+- Purpose: Custom Binary Search Tree sorting MenuItem objects by name/ID. O(log n).
+3. UserHashMap.java
+- Purpose: Custom Hash Table using chaining for collisions. O(1) user lookups.
+
+🧑‍💻 JUNJING'S DOMAIN (Order Workflow)
+4. CartStack.java
+- Purpose: LIFO stack for MenuItem objects. Enables the "Undo" cart feature.
+5. OrderQueue.java
+- Purpose: FIFO queue holding finalized Order objects pending rider assignment.
+6. RiderHeap.java
+- Purpose: Min-Heap array calculating priority scores to dispatch the best rider.
+
+🧑‍💻 JUNBIN'S DOMAIN (Routing Optimization)
+7. UMGraph.java
+- Purpose: Adjacency List graph running Dijkstra's algorithm for shortest path.
+8. Edge.java
+- Purpose: Linked Node inside UMGraph holding the travel weight (time/distance).
