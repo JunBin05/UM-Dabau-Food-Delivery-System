@@ -4,7 +4,7 @@ public class Order {
     String restaurantId;    
     String assignedRiderId; // Starts as null
     
-    CartStack<MenuItem> cart  // The Stack! Allows O(1) Undo operations
+    CartStack<MenuItem> cart;  // The Stack! Allows O(1) Undo operations
     double totalPrice;
     
     long timestamp;         // System.currentTimeMillis() - used for Queue FIFO sorting
