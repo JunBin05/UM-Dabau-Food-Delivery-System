@@ -15,3 +15,8 @@ You explicitly OWN the following classes: `Order`, `CartStack`, `OrderQueue`, an
 - **Rule 1:** You are allowed to add variables or methods to YOUR owned classes if your dispatch logic requires them (e.g., adding a `riderPriorityScore` to the Order, or modifying Heap indices).
 - **Rule 2:** You DO NOT OWN `User`, `GraphNode`, `MenuItem`, or `Restaurant`. You are STRICTLY FORBIDDEN from modifying these classes.
 - **Rule 3:** If your Rider Min-Heap needs a new tracking variable inside the `User` object (like `currentBatteryLevel`), STOP generating code. Explicitly tell the user: *"To calculate priority correctly, we need a new variable [X] in the User class. Please ask the Frontend Developer (who owns User) to add it."*
+# 🚨 RULE 4: API CONTRACT SYNCHRONIZATION 🚨
+Even though we are not writing the Spring Boot Controllers yet, the variable names in your custom Java Data Structures and Models MUST perfectly match the JSON keys defined in `API_CONTRACT.md`.
+- If the contract expects a JSON key called `estimatedTimeMinutes`, your Java class must use exactly `double estimatedTimeMinutes;`.
+- If the contract expects `cartItems`, do not name your variable `cartList`. 
+- You are strictly forbidden from deviating from the naming conventions in the API Contract to ensure future JSON serialization works flawlessly.

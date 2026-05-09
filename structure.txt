@@ -31,6 +31,7 @@ UM-Dabau-Food-Delivery-System/
         │   ├── UMGraph.java         (JunBin)
         │   ├── Edge.java            (JunBin)
         │   └── RestaurantList.java  (Vincent)
+        │   └── UserList.java        (Vincent)
         │
         ├── 📁 controllers/        <-- API Endpoints linking backend to frontend
         │   ├── OrderController.java

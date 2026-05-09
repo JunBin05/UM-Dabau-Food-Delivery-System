@@ -13,3 +13,8 @@ You explicitly OWN the following classes: `UMGraph`, `GraphNode`, `Edge`, and `R
 - **Rule 1:** You are allowed to add variables or methods to YOUR owned classes if Dijkstra's algorithm requires them (e.g., adding `isVisited` to GraphNode, or modifying `Edge` weights).
 - **Rule 2:** You DO NOT OWN `User`, `MenuItem`, `Order`, or `Restaurant`. You are STRICTLY FORBIDDEN from modifying, adding, or deleting variables in these classes.
 - **Rule 3:** If your routing algorithm desperately needs a new variable inside an `Order` or `User`, STOP generating code. Explicitly tell the user: *"To make this route calculation work, we need to add variable [X] to the [Y] class. Please ask the owner of that class to add it for us."*
+# 🚨 RULE 4: API CONTRACT SYNCHRONIZATION 🚨
+Even though we are not writing the Spring Boot Controllers yet, the variable names in your custom Java Data Structures and Models MUST perfectly match the JSON keys defined in `API_CONTRACT.md`.
+- If the contract expects a JSON key called `estimatedTimeMinutes`, your Java class must use exactly `double estimatedTimeMinutes;`.
+- If the contract expects `cartItems`, do not name your variable `cartList`. 
+- You are strictly forbidden from deviating from the naming conventions in the API Contract to ensure future JSON serialization works flawlessly.
