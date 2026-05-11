@@ -1,3 +1,7 @@
+package data_structures;
+
+import models.Order;
+
 public class OrderQueue {
 
     // Internal Node class specifically for the Queue

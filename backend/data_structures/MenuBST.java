@@ -1,3 +1,7 @@
+package data_structures;
+
+import models.MenuItem;
+
 public class MenuBST {
 
     // Internal Node for the Tree

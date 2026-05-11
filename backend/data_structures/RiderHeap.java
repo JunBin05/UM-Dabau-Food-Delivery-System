@@ -1,3 +1,7 @@
+package data_structures;
+
+import models.User;
+
 public class RiderHeap {
 
     private User[] heap; // Array representing the binary tree

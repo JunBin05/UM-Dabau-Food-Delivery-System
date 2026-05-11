@@ -1,3 +1,7 @@
+package data_structures;
+
+import models.MenuItem;
+
 public class CartStack {
     
     // Internal Node class specifically for the Stack

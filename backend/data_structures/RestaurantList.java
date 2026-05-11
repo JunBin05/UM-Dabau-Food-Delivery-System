@@ -1,3 +1,7 @@
+package data_structures;
+
+import models.Restaurant;
+
 public class RestaurantList {
     private class Node {
         Restaurant data;

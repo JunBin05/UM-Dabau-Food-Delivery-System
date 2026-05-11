@@ -1,3 +1,7 @@
+package data_structures;
+
+import models.User;
+
 public class UserList {
     
     // Internal Node class for the custom Linked List

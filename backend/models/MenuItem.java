@@ -1,3 +1,5 @@
+package models;
+
 public class MenuItem {
     String itemId;          // e.g., "M-901"
     String restaurantId;    // Which restaurant sells this?

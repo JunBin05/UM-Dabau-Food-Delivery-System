@@ -1,3 +1,5 @@
+package models;
+
 public class User {
     String userId;          // primary key like "U-1001"
     String name;

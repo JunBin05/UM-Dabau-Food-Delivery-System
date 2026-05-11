@@ -1,3 +1,7 @@
+package data_structures;
+
+import models.User;
+
 public class UserHashMap {
     // Internal Node for handling collisions via Chaining
     private class HashNode {

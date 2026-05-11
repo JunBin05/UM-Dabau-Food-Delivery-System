@@ -1,6 +1,16 @@
+package models;
+
 public class GraphNode {
-    String nodeId;          // e.g., "NODE_FSKTM"
-    String name;            // e.g., "Faculty of Computer Science"
-    double latitude;        // Real GPS coord
-    double longitude;       // Real GPS coord
+    public String nodeId; // e.g., "NODE_FSKTM"
+    public String name; // e.g., "Faculty of Computer Science"
+    public double latitude; // Real GPS coord
+    public double longitude; // Real GPS coord
+
+    // --- 1. Constructor for Easy Setup ---
+    public GraphNode(String nodeId, String name, double latitude, double longitude) {
+        this.nodeId = nodeId;
+        this.name = name;
+        this.latitude = latitude;
+        this.longitude = longitude;
+    }
 }
