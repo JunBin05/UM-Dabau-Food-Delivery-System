@@ -20,6 +20,8 @@ const routeByPath = {
   "/admin/restaurants": { role: "admin", page: "restaurant-management" }
 };
 
+const browseCategories = ["All Items", "Malay", "Chinese", "Western", "Drinks", "Snacks", "Vegetarian", "More Filters"];
+
 function getHomePage(roleId) {
   return roles.find((role) => role.id === roleId)?.homePage ?? "customer-dashboard";
 }
@@ -29,16 +31,48 @@ function isValidRole(roleId) {
 }
 
 function getAllowedPages(roleId) {
-  return (navigationByRole[roleId] ?? []).filter((item) => item.id !== "logout").map((item) => item.id);
+  const pages = (navigationByRole[roleId] ?? []).filter((item) => item.id !== "logout").map((item) => item.id);
+  return roleId === "customer" ? [...pages, "map-tracker"] : pages;
+}
+
+function getValidBrowseCategory(category) {
+  return browseCategories.includes(category) ? category : "All Items";
+}
+
+function updateBrowseCategoryQuery(category) {
+  const nextUrl = category && category !== "All Items"
+    ? `${window.location.pathname}?category=${encodeURIComponent(category)}`
+    : window.location.pathname;
+  window.history.replaceState(null, "", nextUrl);
 }
 
 export default function App() {
   const [role, setRole] = usePersistentState("um-dabau-role", "");
   const [currentPage, setCurrentPage] = usePersistentState("um-dabau-page", "customer-dashboard");
+  const [browseCategory, setBrowseCategory] = useState(() => getValidBrowseCategory(new URLSearchParams(window.location.search).get("category")));
   const [cartItems, setCartItems] = useState(() => initialCartItems);
   const directRoute = routeByPath[window.location.pathname];
   const activeRole = directRoute?.role ?? role;
   const activePage = directRoute?.page ?? currentPage;
+
+  function navigate(nextPage) {
+    if (typeof nextPage === "object" && nextPage !== null) {
+      setCurrentPage(nextPage.page);
+      const nextCategory = getValidBrowseCategory(nextPage.category);
+      setBrowseCategory(nextCategory);
+      updateBrowseCategoryQuery(nextPage.page === "browse-menu" ? nextCategory : "All Items");
+      return;
+    }
+
+    setCurrentPage(nextPage);
+
+    if (nextPage === "browse-menu") {
+      setBrowseCategory("All Items");
+      updateBrowseCategoryQuery("All Items");
+    } else {
+      updateBrowseCategoryQuery("All Items");
+    }
+  }
 
   function selectRole(nextRole) {
     setRole(nextRole);
@@ -100,22 +134,22 @@ export default function App() {
   const safePage = allowedPages.includes(activePage) ? activePage : getHomePage(activeRole);
 
   return (
-    <AppShell role={activeRole} currentPage={safePage} onNavigate={setCurrentPage} onLogout={logout}>
-      {renderPage(safePage, activeRole, setCurrentPage, selectRole, cartItems, setCartItems, addToCart)}
+    <AppShell role={activeRole} currentPage={safePage} onNavigate={navigate} onLogout={logout}>
+      {renderPage(safePage, activeRole, navigate, selectRole, cartItems, setCartItems, addToCart, browseCategory)}
     </AppShell>
   );
 }
 
-function renderPage(page, role, onNavigate, onSelectRole, cartItems, setCartItems, addToCart) {
+function renderPage(page, role, onNavigate, onSelectRole, cartItems, setCartItems, addToCart, browseCategory) {
   switch (page) {
     case "customer-dashboard":
       return <CustomerDashboard onNavigate={onNavigate} cartItems={cartItems} />;
     case "browse-menu":
-      return <BrowseMenu onAddToCart={addToCart} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
+      return <BrowseMenu initialCategory={browseCategory} onAddToCart={addToCart} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
     case "cart":
       return <CartPreview items={cartItems} setItems={setCartItems} />;
     case "order-tracking":
-      return <OrderTracking />;
+      return <OrderTracking onNavigate={onNavigate} />;
     case "rider-dashboard":
       return <RiderDashboard view="riderMain" />;
     case "assigned-delivery":
@@ -132,7 +166,7 @@ function renderPage(page, role, onNavigate, onSelectRole, cartItems, setCartItem
       return <OrderMonitoring />;
     case "live-map":
     case "map-tracker":
-      return <LiveMap role={role} />;
+      return <LiveMap role={role} onNavigate={onNavigate} />;
     case "dev-mode":
       return <DevModeSpoofer role={role} onSelectRole={onSelectRole} />;
     default:

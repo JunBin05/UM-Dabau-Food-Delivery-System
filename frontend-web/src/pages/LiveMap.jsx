@@ -12,17 +12,28 @@ const mapPins = [
   { label: "Drop-off", type: "dropoff", x: 76, y: 67, icon: "location_on" }
 ];
 
-export default function LiveMap({ role = "admin" }) {
+export default function LiveMap({ role = "admin", onNavigate = () => {} }) {
   const isAdmin = role === "admin";
+  const isCustomer = role === "customer";
+  const pageTitle = isAdmin ? "Live Map" : isCustomer ? "Delivery Map" : "Map Tracker";
+  const eyebrow = isAdmin ? "Admin live map" : isCustomer ? "Full route map" : "Route tracker";
 
   return (
     <div className="page-stack map-page">
       <section className="page-heading map-page-heading compact-heading">
         <div>
-          <p className="eyebrow">{isAdmin ? "Admin live map" : "Route tracker"}</p>
-          <h2>{isAdmin ? "Live Map" : "Map Tracker"}</h2>
+          <p className="eyebrow">{eyebrow}</p>
+          <h2>{pageTitle}</h2>
         </div>
-        <span className="status-chip green">Live mock</span>
+        <div className="map-heading-actions">
+          {isCustomer && (
+            <button className="secondary-button" type="button" onClick={() => onNavigate("order-tracking")}>
+              <span className="material-symbols-outlined">arrow_back</span>
+              Back to Order Tracking
+            </button>
+          )}
+          <span className="status-chip green">Live mock</span>
+        </div>
       </section>
 
       <section className="live-map-dashboard" aria-label="Static UM-Dabau campus map mockup">

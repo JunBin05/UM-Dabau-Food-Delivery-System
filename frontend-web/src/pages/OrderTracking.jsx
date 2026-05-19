@@ -23,7 +23,7 @@ const orderItems = [
 const deliveryFee = 2;
 const platformFee = 0.92;
 
-export default function OrderTracking() {
+export default function OrderTracking({ onNavigate = () => {} }) {
   const subtotal = orderItems.reduce((total, item) => total + item.total, 0);
   const total = subtotal + deliveryFee + platformFee;
 
@@ -39,6 +39,16 @@ export default function OrderTracking() {
       </section>
 
       <section className="card tracking-map-card">
+        <div className="tracking-map-toolbar">
+          <div>
+            <strong>Campus route preview</strong>
+            <span>Restaurant to Engineering Block C</span>
+          </div>
+          <button className="primary-button" type="button" onClick={() => onNavigate("map-tracker")}>
+            View Full Map
+            <span className="material-symbols-outlined">open_in_full</span>
+          </button>
+        </div>
         <div className="mock-map tracking-map">
           <span className="campus-road road-one"></span>
           <span className="campus-road road-two"></span>

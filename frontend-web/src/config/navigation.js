@@ -49,7 +49,6 @@ export const navigationByRole = {
     { id: "browse-menu", label: "Browse Menu", icon: "restaurant" },
     { id: "cart", label: "Cart", icon: "shopping_cart" },
     { id: "order-tracking", label: "Order Tracking", icon: "local_shipping" },
-    { id: "map-tracker", label: "Map Tracker", icon: "map" },
     { id: "logout", label: "Logout", icon: "logout", danger: true }
   ],
   rider: [
