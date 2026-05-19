@@ -13,12 +13,14 @@ const mapPins = [
 ];
 
 export default function LiveMap({ role = "admin" }) {
+  const isAdmin = role === "admin";
+
   return (
     <div className="page-stack map-page">
       <section className="page-heading map-page-heading compact-heading">
         <div>
-          <p className="eyebrow">{role === "admin" ? "Admin live map" : "Route tracker"}</p>
-          <h2>{role === "admin" ? "Live Map" : "Map Tracker"}</h2>
+          <p className="eyebrow">{isAdmin ? "Admin live map" : "Route tracker"}</p>
+          <h2>{isAdmin ? "Live Map" : "Map Tracker"}</h2>
         </div>
         <span className="status-chip green">Live mock</span>
       </section>
@@ -44,51 +46,74 @@ export default function LiveMap({ role = "admin" }) {
           </span>
         ))}
 
-        <aside className="floating-map-card preferred-zones-card">
-          <div className="card-header">
-            <div>
-              <p className="eyebrow">Dispatch zones</p>
-              <h3>Preferred Zones</h3>
-            </div>
-            <span className="material-symbols-outlined">hub</span>
-          </div>
-
-          <div className="preferred-zone-list">
-            {preferredZones.map((zone) => (
-              <div className="preferred-zone-row" key={zone.name}>
-                <span className={`zone-dot ${zone.tone}`}></span>
-                <div>
-                  <strong>{zone.name}</strong>
-                  <small>{zone.demand}</small>
-                </div>
-                <b>{zone.active}</b>
+        {isAdmin ? (
+          <aside className="floating-map-card preferred-zones-card">
+            <div className="card-header">
+              <div>
+                <p className="eyebrow">Dispatch zones</p>
+                <h3>Preferred Zones</h3>
               </div>
-            ))}
-          </div>
+              <span className="material-symbols-outlined">hub</span>
+            </div>
 
-          <button className="primary-button rebalance-button" type="button">
-            Rebalance Riders
-          </button>
-        </aside>
+            <div className="preferred-zone-list">
+              {preferredZones.map((zone) => (
+                <div className="preferred-zone-row" key={zone.name}>
+                  <span className={`zone-dot ${zone.tone}`}></span>
+                  <div>
+                    <strong>{zone.name}</strong>
+                    <small>{zone.demand}</small>
+                  </div>
+                  <b>{zone.active}</b>
+                </div>
+              ))}
+            </div>
 
-        <section className="floating-map-card algorithm-status-card">
-          <div>
-            <span>Algorithm Status</span>
-            <strong>Optimizing Routes</strong>
-          </div>
-          <div>
-            <span>Active Nodes</span>
-            <strong>1,204</strong>
-          </div>
-          <div>
-            <span>Avg ETA</span>
-            <strong>14m</strong>
-          </div>
-          <div>
-            <span>Pending</span>
-            <strong>28</strong>
-          </div>
-        </section>
+            <button className="primary-button rebalance-button" type="button">
+              Rebalance Riders
+            </button>
+          </aside>
+        ) : (
+          <aside className="floating-map-card app-map-bottom-sheet">
+            <div>
+              <p className="eyebrow">{role === "rider" ? "Current job" : "Current delivery"}</p>
+              <h3>{role === "rider" ? "Order #8842" : "Campus Cafe to you"}</h3>
+              <span>{role === "rider" ? "Cafe Takdir to KK12, Block B" : "Rider is approaching Engineering Block C"}</span>
+            </div>
+            <div className="app-map-stats">
+              <div>
+                <strong>12m</strong>
+                <small>ETA</small>
+              </div>
+              <div>
+                <strong>1.2 km</strong>
+                <small>Distance</small>
+              </div>
+              <span className="status-chip green">{role === "rider" ? "Accepted" : "Out for Delivery"}</span>
+            </div>
+          </aside>
+        )}
+
+        {isAdmin && (
+          <section className="floating-map-card algorithm-status-card">
+            <div>
+              <span>Algorithm Status</span>
+              <strong>Optimizing Routes</strong>
+            </div>
+            <div>
+              <span>Active Nodes</span>
+              <strong>1,204</strong>
+            </div>
+            <div>
+              <span>Avg ETA</span>
+              <strong>14m</strong>
+            </div>
+            <div>
+              <span>Pending</span>
+              <strong>28</strong>
+            </div>
+          </section>
+        )}
       </section>
     </div>
   );

@@ -11,6 +11,7 @@ const featuredItems = [
     rating: "4.9",
     description: "Fragrant coconut rice, sambal, egg, cucumber, peanuts, and crispy anchovies.",
     price: "RM 8.90",
+    priceValue: 8.9,
     badge: "Best Seller",
     tone: "green"
   },
@@ -22,6 +23,7 @@ const featuredItems = [
     rating: "4.8",
     description: "Golden chicken chop with brown gravy, fries, peas, and campus lunch rush speed.",
     price: "RM 12.50",
+    priceValue: 12.5,
     badge: "Top Rated",
     tone: "amber"
   }
@@ -36,6 +38,7 @@ const menuItems = [
     rating: "4.7",
     description: "Spicy wok-fried noodles with tofu, egg, vegetables, and lime.",
     price: "RM 7.50",
+    priceValue: 7.5,
     prepTime: "10 min",
     tone: "red"
   },
@@ -47,6 +50,7 @@ const menuItems = [
     rating: "4.6",
     description: "Crispy chicken bites tossed in sweet sour sauce with steamed rice.",
     price: "RM 10.90",
+    priceValue: 10.9,
     prepTime: "14 min",
     tone: "orange"
   },
@@ -58,6 +62,7 @@ const menuItems = [
     rating: "4.5",
     description: "Juicy beef burger with cheese, lettuce, tomato, and fries.",
     price: "RM 13.90",
+    priceValue: 13.9,
     prepTime: "16 min",
     tone: "slate"
   },
@@ -69,6 +74,7 @@ const menuItems = [
     rating: "4.8",
     description: "Chilled espresso and milk for late lectures and library sessions.",
     price: "RM 6.90",
+    priceValue: 6.9,
     prepTime: "5 min",
     tone: "blue"
   },
@@ -80,6 +86,7 @@ const menuItems = [
     rating: "4.4",
     description: "Two warm curry puffs packed with potato filling and mild spice.",
     price: "RM 4.50",
+    priceValue: 4.5,
     prepTime: "6 min",
     tone: "amber"
   },
@@ -91,15 +98,22 @@ const menuItems = [
     rating: "4.6",
     description: "Brown rice, tofu, greens, mushrooms, and light sesame dressing.",
     price: "RM 9.80",
+    priceValue: 9.8,
     prepTime: "12 min",
     tone: "green"
   }
 ];
 
-export default function BrowseMenu() {
+export default function BrowseMenu({ onAddToCart = () => {}, cartCount = 0 }) {
   const [selectedCategory, setSelectedCategory] = useState("All Items");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("Recommended");
+  const [lastAdded, setLastAdded] = useState("");
+
+  function handleAdd(item) {
+    onAddToCart(item);
+    setLastAdded(item.name);
+  }
 
   const filteredItems = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -113,14 +127,20 @@ export default function BrowseMenu() {
   return (
     <div className="page-stack browse-menu-page">
       <section className="menu-hero card">
-        <p className="eyebrow">Campus menu</p>
-        <h2>What are you craving today?</h2>
-        <p>Browse fresh campus meals, snacks, and drinks from UM-Dabau vendors with frontend mock data only.</p>
+        <div className="menu-hero-top">
+          <div>
+            <p className="eyebrow">Campus menu</p>
+            <h2>What are you craving today?</h2>
+            <p>Browse fresh campus meals, snacks, and drinks from UM-Dabau vendors with frontend mock data only.</p>
+          </div>
+          <span className="status-chip green">{cartCount} in cart</span>
+        </div>
         <form className="hero-search" onSubmit={(event) => event.preventDefault()}>
           <span className="material-symbols-outlined">search</span>
           <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search for Nasi Lemak, Chicken Chop, Boba..." />
           <button className="primary-button" type="submit">Search</button>
         </form>
+        {lastAdded && <small className="menu-add-feedback">{lastAdded} added locally to cart.</small>}
       </section>
 
       <div className="category-strip menu-category-strip">
@@ -160,7 +180,7 @@ export default function BrowseMenu() {
                 <p>{item.description}</p>
                 <div className="menu-card-footer">
                   <strong>{item.price}</strong>
-                  <button className="icon-label-button" type="button">
+                  <button className="icon-label-button" type="button" onClick={() => handleAdd(item)}>
                     <span className="material-symbols-outlined">add_shopping_cart</span>
                     Add
                   </button>
@@ -206,7 +226,7 @@ export default function BrowseMenu() {
                   <span><span className="material-symbols-outlined">schedule</span>{item.prepTime}</span>
                   <strong>{item.price}</strong>
                 </div>
-                <button className="icon-label-button full" type="button">
+                <button className="icon-label-button full" type="button" onClick={() => handleAdd(item)}>
                   <span className="material-symbols-outlined">add_shopping_cart</span>
                   Add
                 </button>

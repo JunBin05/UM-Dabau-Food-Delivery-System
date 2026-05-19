@@ -4,9 +4,11 @@ import { cartItems } from "../data/mockData.js";
 const deliveryFee = 2.5;
 const platformFee = 0.8;
 
-export default function CartPreview() {
-  const [items, setItems] = useState(cartItems);
+export default function CartPreview({ items: sharedItems, setItems: setSharedItems }) {
+  const [localItems, setLocalItems] = useState(cartItems);
   const [lastRemoved, setLastRemoved] = useState(null);
+  const items = sharedItems ?? localItems;
+  const setItems = setSharedItems ?? setLocalItems;
   const subtotal = useMemo(() => items.reduce((total, item) => total + item.price * item.qty, 0), [items]);
 
   function updateQuantity(itemId, delta) {
@@ -34,12 +36,21 @@ export default function CartPreview() {
   }
 
   return (
-    <div className="page-stack">
-      <section className="page-heading">
+    <div className="page-stack app-cart-page">
+      <section className="page-heading cart-app-heading">
         <div>
           <p className="eyebrow">Customer cart</p>
           <h2>Cart Preview</h2>
-          <span>Local placeholder cart only. Checkout integration is intentionally not wired yet.</span>
+          <span>Review campus delivery items before the placeholder checkout step.</span>
+        </div>
+      </section>
+
+      <section className="cart-delivery-address card">
+        <span className="material-symbols-outlined">location_on</span>
+        <div>
+          <p className="eyebrow">Deliver to</p>
+          <strong>Engineering Block C, Room 304</strong>
+          <small>Contactless drop-off at lobby counter.</small>
         </div>
       </section>
 
@@ -79,7 +90,7 @@ export default function CartPreview() {
                 </button>
               </div>
             ))}
-            {items.length === 0 && <p className="muted">Cart is empty. Add menu items later when backend integration is ready.</p>}
+            {items.length === 0 && <p className="muted">Cart is empty. Add menu items from Browse Menu.</p>}
           </div>
         </article>
 
@@ -87,6 +98,20 @@ export default function CartPreview() {
           <div>
             <p className="eyebrow">Checkout preview</p>
             <h3>Order Summary</h3>
+          </div>
+          <div className="checkout-option-card">
+            <span className="material-symbols-outlined">sell</span>
+            <div>
+              <strong>Voucher</strong>
+              <small>Campus lunch promo placeholder</small>
+            </div>
+          </div>
+          <div className="checkout-option-card">
+            <span className="material-symbols-outlined">payments</span>
+            <div>
+              <strong>Cash / Mock Wallet</strong>
+              <small>Payment method preview only</small>
+            </div>
           </div>
           <dl>
             <div><dt>Subtotal</dt><dd>RM {subtotal.toFixed(2)}</dd></div>
@@ -98,7 +123,7 @@ export default function CartPreview() {
             <button className="primary-button full checkout-button" type="button">Proceed to Checkout</button>
             <p className="secure-note cart-secure-note">
               <span className="material-symbols-outlined">lock</span>
-              Secure Payment placeholder only. No checkout or backend call is connected.
+              Secure Payment placeholder only. No checkout is connected.
             </p>
           </div>
         </article>

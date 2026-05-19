@@ -9,7 +9,7 @@ const preferredZoneOptions = [
 
 export default function RiderDashboard({ view = "riderMain" }) {
   const [isOnline, setIsOnline] = useState(true);
-  const [deliveryStatus, setDeliveryStatus] = useState("New delivery waiting for response");
+  const [deliveryStatus, setDeliveryStatus] = useState("pending");
   const [selectedZone, setSelectedZone] = useState("KK12");
 
   const title = view === "riderZones" ? "Preferred Zones" : view === "riderAssigned" ? "Assigned Delivery" : "Rider Dashboard";
@@ -17,6 +17,13 @@ export default function RiderDashboard({ view = "riderMain" }) {
   const showDelivery = view === "riderMain" || view === "riderAssigned";
   const showRouting = view === "riderMain";
   const showZoneManager = view === "riderZones";
+  const deliveryStatusLabel = {
+    pending: "New job",
+    accepted: "Delivery accepted",
+    completed: "Completed locally",
+    rejected: "Rejected locally"
+  }[deliveryStatus];
+  const deliveryStatusTone = deliveryStatus === "accepted" || deliveryStatus === "completed" ? "green" : deliveryStatus === "rejected" ? "danger" : "amber";
 
   return (
     <div className="page-stack rider-dashboard-page">
@@ -69,6 +76,17 @@ export default function RiderDashboard({ view = "riderMain" }) {
             </div>
             <button className="text-button rider-link-button" type="button">Manage Zones</button>
           </article>
+
+          {view === "riderMain" && (
+            <article className="card rider-summary-card rider-earnings-card">
+              <div className="card-header">
+                <h3>Today Earnings</h3>
+                <span className="material-symbols-outlined">account_balance_wallet</span>
+              </div>
+              <strong>RM 76</strong>
+              <p>Mock payout estimate from completed campus deliveries.</p>
+            </article>
+          )}
         </section>
       )}
 
@@ -80,7 +98,7 @@ export default function RiderDashboard({ view = "riderMain" }) {
               <p className="eyebrow">New Delivery Assigned</p>
               <h3>Order #8842</h3>
             </div>
-            <span className="status-chip amber">{deliveryStatus}</span>
+            <span className={`status-chip ${deliveryStatusTone}`}>{deliveryStatusLabel}</span>
           </div>
 
           <div className="delivery-route-block">
@@ -114,12 +132,31 @@ export default function RiderDashboard({ view = "riderMain" }) {
           </div>
 
           <div className="delivery-action-row">
-            <button className="reject-delivery-button" type="button" onClick={() => setDeliveryStatus("Delivery rejected locally")}>
-              Reject
-            </button>
-            <button className="primary-button accept-delivery-button" type="button" onClick={() => setDeliveryStatus("Delivery accepted locally")}>
-              Accept Delivery
-            </button>
+            {deliveryStatus === "pending" && (
+              <>
+                <button className="reject-delivery-button" type="button" onClick={() => setDeliveryStatus("rejected")}>
+                  Reject
+                </button>
+                <button className="primary-button accept-delivery-button" type="button" onClick={() => setDeliveryStatus("accepted")}>
+                  Accept Delivery
+                </button>
+              </>
+            )}
+            {deliveryStatus === "accepted" && (
+              <button className="primary-button accept-delivery-button" type="button" onClick={() => setDeliveryStatus("completed")}>
+                Complete Delivery
+              </button>
+            )}
+            {deliveryStatus === "completed" && (
+              <button className="secondary-button accept-delivery-button" type="button" disabled>
+                Delivery Completed
+              </button>
+            )}
+            {deliveryStatus === "rejected" && (
+              <button className="secondary-button accept-delivery-button" type="button" onClick={() => setDeliveryStatus("pending")}>
+                Restore Mock Job
+              </button>
+            )}
           </div>
         </article>
 

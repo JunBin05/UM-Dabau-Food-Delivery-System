@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import AppShell from "./components/AppShell.jsx";
 import { navigationByRole, roles } from "./config/navigation.js";
+import { cartItems as initialCartItems } from "./data/mockData.js";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import BrowseMenu from "./pages/BrowseMenu.jsx";
 import CartPreview from "./pages/CartPreview.jsx";
@@ -34,6 +35,7 @@ function getAllowedPages(roleId) {
 export default function App() {
   const [role, setRole] = usePersistentState("um-dabau-role", "");
   const [currentPage, setCurrentPage] = usePersistentState("um-dabau-page", "customer-dashboard");
+  const [cartItems, setCartItems] = useState(() => initialCartItems);
   const directRoute = routeByPath[window.location.pathname];
   const activeRole = directRoute?.role ?? role;
   const activePage = directRoute?.page ?? currentPage;
@@ -46,6 +48,27 @@ export default function App() {
   function logout() {
     setRole("");
     setCurrentPage("customer-dashboard");
+  }
+
+  function addToCart(menuItem) {
+    setCartItems((current) => {
+      const existingItem = current.find((item) => item.id === menuItem.id);
+
+      if (existingItem) {
+        return current.map((item) => item.id === menuItem.id ? { ...item, qty: item.qty + 1 } : item);
+      }
+
+      return [
+        ...current,
+        {
+          id: menuItem.id,
+          name: menuItem.name,
+          qty: 1,
+          price: menuItem.priceValue,
+          note: menuItem.vendor
+        }
+      ];
+    });
   }
 
   useEffect(() => {
@@ -78,19 +101,19 @@ export default function App() {
 
   return (
     <AppShell role={activeRole} currentPage={safePage} onNavigate={setCurrentPage} onLogout={logout}>
-      {renderPage(safePage, activeRole, setCurrentPage, selectRole)}
+      {renderPage(safePage, activeRole, setCurrentPage, selectRole, cartItems, setCartItems, addToCart)}
     </AppShell>
   );
 }
 
-function renderPage(page, role, onNavigate, onSelectRole) {
+function renderPage(page, role, onNavigate, onSelectRole, cartItems, setCartItems, addToCart) {
   switch (page) {
     case "customer-dashboard":
-      return <CustomerDashboard onNavigate={onNavigate} />;
+      return <CustomerDashboard onNavigate={onNavigate} cartItems={cartItems} />;
     case "browse-menu":
-      return <BrowseMenu />;
+      return <BrowseMenu onAddToCart={addToCart} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
     case "cart":
-      return <CartPreview />;
+      return <CartPreview items={cartItems} setItems={setCartItems} />;
     case "order-tracking":
       return <OrderTracking />;
     case "rider-dashboard":
