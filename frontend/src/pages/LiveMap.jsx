@@ -14,6 +14,7 @@ export default function LiveMap({ role = "admin", onNavigate = () => {} }) {
   const eyebrow = isAdmin ? "Admin live map" : isCustomer ? "Full route map" : "Route tracker";
   const routePositions = useMemo(() => routeSummary?.path?.map((node) => [node.latitude, node.longitude]) || [], [routeSummary]);
   const routeStart = routeSummary?.path?.[0];
+  const routePickup = routeSummary?.path?.find((node) => node.nodeId?.includes("CAFE") || node.nodeId?.includes("FOOD") || node.nodeId?.includes("CENTRAL") || node.nodeId?.includes("ZUS"));
   const routeEnd = routeSummary?.path?.[routeSummary.path.length - 1];
 
   function loadMapData() {
@@ -73,7 +74,7 @@ export default function LiveMap({ role = "admin", onNavigate = () => {} }) {
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }}>
           <MapContainer center={[3.1209, 101.6521]} zoom={15} style={{ height: "100%", width: "100%" }} zoomControl={false}>
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
-            {locations.map((location) => (
+            {!routeSummary && locations.map((location) => (
               <Marker key={location.id} position={[location.latitude, location.longitude]}>
                 <Popup>
                   <strong>{location.name}</strong><br />
@@ -84,12 +85,17 @@ export default function LiveMap({ role = "admin", onNavigate = () => {} }) {
             {routePositions.length > 1 && <Polyline positions={routePositions} pathOptions={{ color: "#16a34a", weight: 6, opacity: 0.86 }} />}
             {routeStart && (
               <Marker position={[routeStart.latitude, routeStart.longitude]}>
-                <Popup><strong>Rider start</strong><br /><small>{routeStart.name}</small></Popup>
+                <Popup><strong>Driver</strong><br /><small>{routeStart.name}</small></Popup>
+              </Marker>
+            )}
+            {routePickup && (
+              <Marker position={[routePickup.latitude, routePickup.longitude]}>
+                <Popup><strong>Cafe pickup</strong><br /><small>{routePickup.name}</small></Popup>
               </Marker>
             )}
             {routeEnd && (
               <Marker position={[routeEnd.latitude, routeEnd.longitude]}>
-                <Popup><strong>Customer drop-off</strong><br /><small>{routeEnd.name}</small></Popup>
+                <Popup><strong>User location</strong><br /><small>{routeEnd.name}</small></Popup>
               </Marker>
             )}
           </MapContainer>

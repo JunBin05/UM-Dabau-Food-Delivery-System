@@ -1,6 +1,8 @@
 package com.umdabau.controller;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.umdabau.data_structures.CartStack;
 import com.umdabau.models.MenuItem;
 import com.umdabau.models.Order;
+import com.umdabau.models.RouteSummary;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -98,10 +101,10 @@ public class OrderController {
     }
 
     @PostMapping("/checkout")
-    public ResponseEntity<String> checkoutOrder(@RequestBody Order newOrder) {
+    public ResponseEntity<Map<String, Object>> checkoutOrder(@RequestBody Order newOrder) {
         // 1. ADD THIS CHECK: Don't allow checking out an empty cart!
         if (activeCart.isEmpty()) {
-            return ResponseEntity.badRequest().body("Cannot checkout: Cart is empty.");
+            return ResponseEntity.badRequest().body(Map.of("message", "Cannot checkout: Cart is empty."));
         }
 
         List<MenuItem> checkedOutItems = activeCart.toList();
@@ -126,8 +129,25 @@ public class OrderController {
         
         // (Assuming you added lastCartAction for the undo feature)
         lastCartAction = null; 
+
+        RouteSummary routeSummary = null;
+        boolean assigned = false;
+
+        try {
+            routeSummary = deliveryService.assignNextOrder();
+            assigned = routeSummary != null;
+        } catch (IllegalArgumentException error) {
+            assigned = false;
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("message", assigned ? "Driver found! Your order is now on the way." : "Order queued. Waiting for an available rider.");
+        response.put("orderId", newOrder.orderId);
+        response.put("assigned", assigned);
+        response.put("routeSummary", routeSummary);
+        response.put("pendingOrders", deliveryService.getOrderQueue().getSize());
         
-        return ResponseEntity.ok("Order queued! Pending orders: " + deliveryService.getOrderQueue().getSize());
+        return ResponseEntity.ok(response);
     }
 
     private static class CartAction {

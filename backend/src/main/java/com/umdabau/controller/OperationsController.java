@@ -112,6 +112,8 @@ public class OperationsController {
         payload.put("items", deliveryService.getLatestDispatchedOrder() == null ? List.of() : deliveryService.getLatestDispatchedOrder().cart);
         payload.put("deliveryFee", 2.5);
         payload.put("platformFee", 0.8);
+        payload.put("pickupNodeId", deliveryService.getLatestPickupNodeId());
+        payload.put("dropoffNodeId", deliveryService.getLatestDropoffNodeId());
         return payload;
     }
 

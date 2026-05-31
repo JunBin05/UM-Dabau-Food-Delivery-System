@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchJson } from "../api/liveApi.js";
 
-export default function CartPreview({ items = [], isLoading = false, onRefreshCart = () => {}, onUndoLastCartItem = () => {}, onAddItem = () => {}, onRemoveItem = () => {}, onRemoveAllItem = () => {} }) {
+export default function CartPreview({ items = [], isLoading = false, onRefreshCart = () => {}, onUndoLastCartItem = () => {}, onAddItem = () => {}, onRemoveItem = () => {}, onRemoveAllItem = () => {}, onNavigate = () => {} }) {
   const [checkoutMessage, setCheckoutMessage] = useState("");
   const [delivery, setDelivery] = useState({ deliveryAddress: "Loading delivery point...", deliveryNodeId: "NODE_KK12_BLOCK_A", deliveryFee: 0, platformFee: 0 });
   const subtotal = useMemo(() => items.reduce((total, item) => total + item.price * item.qty, 0), [items]);
@@ -27,11 +27,14 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
         if (!response.ok) {
           throw new Error(`Backend returned ${response.status}`);
         }
-        return response.text();
+        return response.json();
       })
-      .then((message) => {
-        setCheckoutMessage(message);
+      .then((checkoutResult) => {
+        setCheckoutMessage(checkoutResult.message);
         onRefreshCart();
+        if (checkoutResult.assigned) {
+          window.setTimeout(() => onNavigate("order-tracking"), 900);
+        }
       })
       .catch((error) => {
         console.error("Failed to checkout order:", error);
