@@ -99,11 +99,26 @@ public class OrderController {
 
     @PostMapping("/checkout")
     public ResponseEntity<String> checkoutOrder(@RequestBody Order newOrder) {
-        newOrder.cart = this.activeCart; 
+        List<MenuItem> checkedOutItems = activeCart.toList();
+        newOrder.cart = checkedOutItems;
         newOrder.status = "PENDING_DISPATCH";
+        newOrder.timestamp = System.currentTimeMillis();
+        newOrder.totalPrice = checkedOutItems.stream()
+            .mapToDouble(MenuItem::getPrice)
+            .sum();
+
+        if (newOrder.orderId == null || newOrder.orderId.isBlank()) {
+            newOrder.orderId = "ORD-" + newOrder.timestamp;
+        }
+
+        if ((newOrder.restaurantId == null || newOrder.restaurantId.isBlank()) && !checkedOutItems.isEmpty()) {
+            newOrder.restaurantId = checkedOutItems.get(0).getRestaurantId();
+        }
         
         // Put the order into the globally shared queue!
         deliveryService.getOrderQueue().enqueue(newOrder);
+        activeCart.clear();
+        lastCartAction = null;
         
         return ResponseEntity.ok("Order queued! Pending orders: " + deliveryService.getOrderQueue().getSize());
     }

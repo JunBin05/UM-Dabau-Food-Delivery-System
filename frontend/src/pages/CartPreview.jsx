@@ -1,14 +1,41 @@
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 const deliveryFee = 2.5;
 const platformFee = 0.8;
 
 export default function CartPreview({ items = [], isLoading = false, onRefreshCart = () => {}, onUndoLastCartItem = () => {}, onAddItem = () => {}, onRemoveItem = () => {}, onRemoveAllItem = () => {} }) {
+  const [checkoutMessage, setCheckoutMessage] = useState("");
   const subtotal = useMemo(() => items.reduce((total, item) => total + item.price * item.qty, 0), [items]);
 
   useEffect(() => {
     onRefreshCart();
   }, [onRefreshCart]);
+
+  function checkout() {
+    setCheckoutMessage("");
+
+    fetch("http://localhost:8080/api/orders/checkout", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({})
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`);
+        }
+        return response.text();
+      })
+      .then((message) => {
+        setCheckoutMessage(message);
+        onRefreshCart();
+      })
+      .catch((error) => {
+        console.error("Failed to checkout order:", error);
+        setCheckoutMessage("Checkout failed. Please try again.");
+      });
+  }
 
   return (
     <div className="page-stack app-cart-page">
@@ -96,10 +123,11 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
             <div className="total"><dt>Total</dt><dd>RM {(subtotal + deliveryFee + platformFee).toFixed(2)}</dd></div>
           </dl>
           <div className="cart-actions">
-            <button className="primary-button full checkout-button" type="button">Proceed to Checkout</button>
+            <button className="primary-button full checkout-button" type="button" onClick={checkout} disabled={isLoading || items.length === 0}>Proceed to Checkout</button>
+            {checkoutMessage && <p className="muted">{checkoutMessage}</p>}
             <p className="secure-note cart-secure-note">
               <span className="material-symbols-outlined">lock</span>
-              Secure Payment placeholder only. No checkout is connected.
+              Secure Payment placeholder only. Checkout queues the order for dispatch.
             </p>
           </div>
         </article>

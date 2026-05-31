@@ -147,6 +147,11 @@ public class CartStack {
         return size; 
     }
 
+    public void clear() {
+        top = null;
+        size = 0;
+    }
+
     public List<MenuItem> toList() {
         List<MenuItem> items = new ArrayList<>();
         StackNode current = top;
