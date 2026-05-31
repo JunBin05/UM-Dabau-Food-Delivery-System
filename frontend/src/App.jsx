@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import AppShell from "./components/AppShell.jsx";
 import { navigationByRole, roles } from "./config/navigation.js";
-import { cartItems as initialCartItems } from "./data/mockData.js";
 import AdminDashboard from "./pages/AdminDashboard.jsx";
 import BrowseMenu from "./pages/BrowseMenu.jsx";
 import CartPreview from "./pages/CartPreview.jsx";
@@ -21,6 +20,7 @@ const routeByPath = {
 };
 
 const browseCategories = ["All Items", "Malay", "Chinese", "Western", "Drinks", "Snacks", "Vegetarian", "More Filters"];
+const ordersApiUrl = "http://localhost:8080/api/orders";
 
 function getHomePage(roleId) {
   return roles.find((role) => role.id === roleId)?.homePage ?? "customer-dashboard";
@@ -46,14 +46,78 @@ function updateBrowseCategoryQuery(category) {
   window.history.replaceState(null, "", nextUrl);
 }
 
+function getCartItemId(item, fallbackIndex = 0) {
+  return item.itemId || item.id || `${item.name || "cart-item"}-${fallbackIndex}`;
+}
+
+function toCartLineItem(item, fallbackIndex = 0) {
+  return {
+    id: getCartItemId(item, fallbackIndex),
+    itemId: item.itemId || item.id,
+    restaurantId: item.restaurantId,
+    name: item.name,
+    qty: item.qty || 1,
+    price: Number(item.price ?? item.priceValue ?? 0),
+    note: item.category || item.note || item.vendor || item.restaurantId || "Cart item",
+    category: item.category
+  };
+}
+
+function toMenuItemPayload(item) {
+  return {
+    itemId: item.itemId || item.id,
+    restaurantId: item.restaurantId,
+    name: item.name,
+    price: Number(item.price ?? item.priceValue ?? 0),
+    category: item.category || item.note || ""
+  };
+}
+
+function normalizeCartItems(items) {
+  return items.reduce((groupedItems, item, index) => {
+    const lineItem = toCartLineItem(item, index);
+    const existingItem = groupedItems.find((current) => current.id === lineItem.id);
+
+    if (existingItem) {
+      existingItem.qty += lineItem.qty;
+      return groupedItems;
+    }
+
+    groupedItems.push(lineItem);
+    return groupedItems;
+  }, []);
+}
+
 export default function App() {
   const [role, setRole] = usePersistentState("um-dabau-role", "");
   const [currentPage, setCurrentPage] = usePersistentState("um-dabau-page", "customer-dashboard");
   const [browseCategory, setBrowseCategory] = useState(() => getValidBrowseCategory(new URLSearchParams(window.location.search).get("category")));
-  const [cartItems, setCartItems] = useState(() => initialCartItems);
+  const [cartItems, setCartItems] = useState([]);
+  const [isCartLoading, setIsCartLoading] = useState(false);
   const directRoute = routeByPath[window.location.pathname];
   const activeRole = directRoute?.role ?? role;
   const activePage = directRoute?.page ?? currentPage;
+
+  const refreshCartItems = useCallback(() => {
+    setIsCartLoading(true);
+
+    return fetch(`${ordersApiUrl}/cart`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`);
+        }
+        return response.json();
+      })
+      .then((items) => {
+        setCartItems(normalizeCartItems(items));
+      })
+      .catch((error) => {
+        console.error("Failed to fetch cart items:", error);
+      })
+      .finally(() => {
+        setIsCartLoading(false);
+      });
+  }, []);
 
   function navigate(nextPage) {
     if (typeof nextPage === "object" && nextPage !== null) {
@@ -84,26 +148,138 @@ export default function App() {
     setCurrentPage("customer-dashboard");
   }
 
-  function addToCart(menuItem) {
+  function addOptimisticCartItem(menuItem) {
     setCartItems((current) => {
-      const existingItem = current.find((item) => item.id === menuItem.id);
+      const nextItem = toCartLineItem(menuItem);
+      const existingItem = current.find((item) => item.id === nextItem.id);
 
       if (existingItem) {
-        return current.map((item) => item.id === menuItem.id ? { ...item, qty: item.qty + 1 } : item);
+        return current.map((item) => item.id === nextItem.id ? { ...item, qty: item.qty + 1 } : item);
       }
 
-      return [
-        ...current,
-        {
-          id: menuItem.id,
-          name: menuItem.name,
-          qty: 1,
-          price: menuItem.priceValue,
-          note: menuItem.vendor
-        }
-      ];
+      return [...current, nextItem];
     });
   }
+
+  function removeOptimisticCartItem(menuItem) {
+    setCartItems((current) => {
+      const nextItem = toCartLineItem(menuItem);
+      const existingItem = current.find((item) => item.id === nextItem.id);
+
+      if (!existingItem) {
+        return current;
+      }
+
+      if (existingItem.qty <= 1) {
+        return current.filter((item) => item.id !== nextItem.id);
+      }
+
+      return current.map((item) => item.id === nextItem.id ? { ...item, qty: item.qty - 1 } : item);
+    });
+  }
+
+  function removeAllOptimisticCartItems(menuItem) {
+    setCartItems((current) => {
+      const nextItem = toCartLineItem(menuItem);
+      return current.filter((item) => item.id !== nextItem.id);
+    });
+  }
+
+  function addCartItem(menuItem) {
+    addOptimisticCartItem(menuItem);
+
+    return fetch(`${ordersApiUrl}/cart/add`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(toMenuItemPayload(menuItem))
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`);
+        }
+        return response.text();
+      })
+      .then((message) => {
+        console.log("Backend received add-to-cart request:", message);
+        return refreshCartItems().then(() => true);
+      })
+      .catch((error) => {
+        console.error("Failed to add item to cart:", error);
+        removeOptimisticCartItem(menuItem);
+        return refreshCartItems().then(() => false);
+      });
+  }
+
+  function removeCartItem(menuItem) {
+    removeOptimisticCartItem(menuItem);
+
+    return fetch(`${ordersApiUrl}/cart/remove`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(toMenuItemPayload(menuItem))
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(() => refreshCartItems().then(() => true))
+      .catch((error) => {
+        console.error("Failed to reduce item quantity:", error);
+        addOptimisticCartItem(menuItem);
+        return refreshCartItems().then(() => false);
+      });
+  }
+
+  function removeAllCartItems(menuItem) {
+    removeAllOptimisticCartItems(menuItem);
+
+    return fetch(`${ordersApiUrl}/cart/remove-all`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(toMenuItemPayload(menuItem))
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`);
+        }
+        return response.text();
+      })
+      .then(() => refreshCartItems().then(() => true))
+      .catch((error) => {
+        console.error("Failed to remove item from cart:", error);
+        return refreshCartItems().then(() => false);
+      });
+  }
+
+  function undoLastCartItem() {
+    return fetch(`${ordersApiUrl}/cart/undo`, {
+      method: "POST"
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`);
+        }
+        return response.text();
+      })
+      .then(() => refreshCartItems())
+      .catch((error) => {
+        console.error("Failed to undo last cart action:", error);
+      });
+  }
+
+  useEffect(() => {
+    if (activeRole === "customer") {
+      refreshCartItems();
+    }
+  }, [activeRole, refreshCartItems]);
 
   useEffect(() => {
     if (directRoute) {
@@ -135,19 +311,19 @@ export default function App() {
 
   return (
     <AppShell role={activeRole} currentPage={safePage} onNavigate={navigate} onLogout={logout}>
-      {renderPage(safePage, activeRole, navigate, selectRole, cartItems, setCartItems, addToCart, browseCategory)}
+      {renderPage(safePage, activeRole, navigate, selectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isCartLoading, browseCategory)}
     </AppShell>
   );
 }
 
-function renderPage(page, role, onNavigate, onSelectRole, cartItems, setCartItems, addToCart, browseCategory) {
+function renderPage(page, role, onNavigate, onSelectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isCartLoading, browseCategory) {
   switch (page) {
     case "customer-dashboard":
       return <CustomerDashboard onNavigate={onNavigate} cartItems={cartItems} />;
     case "browse-menu":
-      return <BrowseMenu initialCategory={browseCategory} onAddToCart={addToCart} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
+      return <BrowseMenu initialCategory={browseCategory} cartItems={cartItems} onCartAdd={addCartItem} onCartRemove={removeCartItem} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
     case "cart":
-      return <CartPreview items={cartItems} setItems={setCartItems} />;
+      return <CartPreview items={cartItems} isLoading={isCartLoading} onRefreshCart={refreshCartItems} onUndoLastCartItem={undoLastCartItem} onAddItem={addCartItem} onRemoveItem={removeCartItem} onRemoveAllItem={removeAllCartItems} />;
     case "order-tracking":
       return <OrderTracking onNavigate={onNavigate} />;
     case "rider-dashboard":

@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.umdabau.config.DummyDataLoader; // Imports your new data file
 import com.umdabau.data_structures.MenuBST;
 import com.umdabau.models.MenuItem;
 
@@ -15,19 +16,17 @@ import com.umdabau.models.MenuItem;
 @CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173"})
 public class MenuController {
 
-    // 1. Create your Data Structure here (or in a Service layer)
-    private MenuBST menuDatabase = new MenuBST();
+    // 1. Fetch the data from the loader file exactly once when the server starts
+    private MenuBST menuDatabase = DummyDataLoader.populateMenu();
 
     public MenuController() {
-        // You might populate dummy data here on startup
-        menuDatabase.insert(new MenuItem("M-01", "R-500", "Ayam Goreng", 12.50, "Mains"));
-        menuDatabase.insert(new MenuItem("M-02", "R-500", "Teh Tarik", 3.00, "Drinks"));
+        // Look how clean this is! No data logic mixed in with networking logic.
     }
 
-    // 2. THIS is the exact endpoint Vincent is fetching!
+    // 2. The endpoint that Vincent's React app calls
     @GetMapping("/menu")
     public List<MenuItem> getFullMenu() {
-        // You tell the BST to return its data as an array, and Spring Boot converts it to JSON automatically!
+        // Extracts the list from the AVL tree and sends it as JSON
         return menuDatabase.inOrderTraversal(); 
     }
 }

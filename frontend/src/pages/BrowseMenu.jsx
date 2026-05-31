@@ -9,7 +9,7 @@ function getValidCategory(category) {
   return categories.includes(category) ? category : "All Items";
 }
 
-export default function BrowseMenu({ initialCategory = "All Items", onAddToCart = () => {}, cartCount = 0 }) {
+export default function BrowseMenu({ initialCategory = "All Items", cartItems = [], onCartAdd = () => {}, onCartRemove = () => {}, cartCount = 0 }) {
   const [selectedCategory, setSelectedCategory] = useState(() => getValidCategory(initialCategory));
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("Recommended");
@@ -49,9 +49,20 @@ export default function BrowseMenu({ initialCategory = "All Items", onAddToCart 
   }
 
   function handleAdd(item) {
-    const itemWithVendor = { ...item, vendor: selectedRestaurant?.name || item.vendor || 'Campus Eatery' };
-    onAddToCart(itemWithVendor);
-    setLastAdded(item.name);
+    Promise.resolve(onCartAdd(item)).then((wasAdded) => {
+      if (wasAdded !== false) {
+        setLastAdded(item.name);
+      }
+    });
+  }
+
+  function handleRemove(item) {
+    onCartRemove(item);
+  }
+
+  function getItemQuantity(item) {
+    const cartItem = cartItems.find((currentItem) => currentItem.id === (item.itemId || item.id));
+    return cartItem?.qty || 0;
   }
 
   const visibleRestaurants = useMemo(() => {
@@ -71,20 +82,29 @@ export default function BrowseMenu({ initialCategory = "All Items", onAddToCart 
 
     const normalizedSearch = searchTerm.trim().toLowerCase();
     
-    // 3. NEW: If Java data exists, display it! Otherwise use mock data.
-    // (This maps the Java variables perfectly into Vincent's frontend variables)
     const activeData = liveMenuData.length > 0 
-      ? liveMenuData.map(javaItem => ({
-          id: javaItem.itemId,
-          name: javaItem.name,
-          category: javaItem.category || "Mains",
-          description: "Fresh from the Java Server!",
-          price: `RM ${javaItem.price.toFixed(2)}`,
-          priceValue: javaItem.price,
-          prepTime: "10 min",
-          tone: "green"
+      ? liveMenuData
+          .filter(javaItem => javaItem.restaurantId === selectedRestaurant.id)
+          .map(javaItem => ({
+            itemId: javaItem.itemId,
+            restaurantId: javaItem.restaurantId,
+            price: javaItem.price,
+            id: javaItem.itemId,
+            name: javaItem.name,
+            category: javaItem.category || "Mains",
+            description: "Fresh from the Java Server!",
+            displayPrice: `RM ${javaItem.price.toFixed(2)}`,
+            priceValue: javaItem.price,
+            prepTime: "10 min",
+            tone: "green"
       }))
-      : selectedRestaurant.menuItems;
+      : selectedRestaurant.menuItems.map(menuItem => ({
+          ...menuItem,
+          itemId: menuItem.itemId || menuItem.id,
+          restaurantId: menuItem.restaurantId || selectedRestaurant.id,
+          price: menuItem.priceValue,
+          displayPrice: menuItem.price
+      }));
 
     return activeData.filter((item) => {
       const matchesCategory = categoryMatches(selectedCategory, item.category);
@@ -113,7 +133,7 @@ export default function BrowseMenu({ initialCategory = "All Items", onAddToCart 
           <input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder={searchPlaceholder} />
           <button className="primary-button" type="submit">Search</button>
         </form>
-        {lastAdded && <small className="menu-add-feedback">{lastAdded} added locally to cart.</small>}
+        {lastAdded && <small className="menu-add-feedback">{lastAdded} sent to cart.</small>}
       </section>
 
       <div className="category-strip menu-category-strip">
@@ -207,29 +227,41 @@ export default function BrowseMenu({ initialCategory = "All Items", onAddToCart 
           </div>
 
           <div className="menu-grid">
-            {restaurantMenuItems.map((item) => (
-              <article className="menu-card" key={item.id}>
-                <div className={`food-photo ${item.tone}`}>
-                  <span>{item.category}</span>
-                </div>
-                <div className="menu-card-body">
-                  <div className="menu-card-topline">
-                    <span className="status-chip green">{item.category}</span>
-                    <span className="rating-pill">{item.prepTime}</span>
+            {restaurantMenuItems.map((item) => {
+              const itemQuantity = getItemQuantity(item);
+
+              return (
+                <article className="menu-card" key={item.id}>
+                  <div className={`food-photo ${item.tone}`}>
+                    <span>{item.category}</span>
                   </div>
-                  <h3>{item.name}</h3>
-                  <p>{item.description}</p>
-                  <div className="menu-meta-row">
-                    <span><span className="material-symbols-outlined">storefront</span>{selectedRestaurant.name}</span>
-                    <strong>{item.price}</strong>
+                  <div className="menu-card-body">
+                    <div className="menu-card-topline">
+                      <span className="status-chip green">{item.category}</span>
+                      <span className="rating-pill">{item.prepTime}</span>
+                    </div>
+                    <h3>{item.name}</h3>
+                    <p>{item.description}</p>
+                    <div className="menu-meta-row">
+                      <span><span className="material-symbols-outlined">storefront</span>{selectedRestaurant.name}</span>
+                      <strong>{item.displayPrice || item.price}</strong>
+                    </div>
+                    {itemQuantity > 0 ? (
+                      <div className="quantity-control" aria-label={`Quantity for ${item.name}`}>
+                        <button type="button" onClick={() => handleRemove(item)} aria-label={`Remove one ${item.name}`}>-</button>
+                        <span>{itemQuantity}</span>
+                        <button type="button" onClick={() => handleAdd(item)} aria-label={`Add one ${item.name}`}>+</button>
+                      </div>
+                    ) : (
+                      <button className="icon-label-button full" type="button" onClick={() => handleAdd(item)}>
+                        <span className="material-symbols-outlined">add_shopping_cart</span>
+                        Add
+                      </button>
+                    )}
                   </div>
-                  <button className="icon-label-button full" type="button" onClick={() => handleAdd(item)}>
-                    <span className="material-symbols-outlined">add_shopping_cart</span>
-                    Add
-                  </button>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         </section>
       )}

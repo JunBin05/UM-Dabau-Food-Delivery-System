@@ -8,6 +8,9 @@ public class MenuItem {
     private double price;
     private String category;
 
+    public MenuItem() {
+    }
+
     public MenuItem(String itemId, String restaurantId, String name, double price, String category) {
         this.itemId = itemId;
         this.restaurantId = restaurantId;
@@ -22,6 +25,12 @@ public class MenuItem {
     public String getName() { return name; }
     public double getPrice() { return price; }
     public String getCategory() { return category; }
+
+    public void setItemId(String itemId) { this.itemId = itemId; }
+    public void setRestaurantId(String restaurantId) { this.restaurantId = restaurantId; }
+    public void setName(String name) { this.name = name; }
+    public void setPrice(double price) { this.price = price; }
+    public void setCategory(String category) { this.category = category; }
 
     @Override
     public String toString() {
