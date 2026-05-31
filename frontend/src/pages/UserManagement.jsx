@@ -13,10 +13,10 @@ const emptyUserForm = {
 
 const roleOptions = ["Customer", "Rider", "Admin"];
 const statusOptions = ["Active", "Offline", "Suspended", "ASSIGNED"];
-const nodeOptions = ["NODE_FSKTM", "NODE_KK12_BLOCK_A", "NODE_LIBRARY", "NODE_UM_CENTRAL", "NODE_ENGINEERING"];
 
 export default function UserManagement() {
   const [userRows, setUserRows] = useState([]);
+  const [nodeOptions, setNodeOptions] = useState([]);
   const [form, setForm] = useState(emptyUserForm);
   const [editingId, setEditingId] = useState("");
 
@@ -31,6 +31,9 @@ export default function UserManagement() {
 
   useEffect(() => {
     loadUsers();
+    fetchJson("/live/locations")
+      .then(setNodeOptions)
+      .catch((error) => console.error("Failed to load graph node options:", error));
   }, []);
 
   function updateField(field, value) {
@@ -119,7 +122,7 @@ export default function UserManagement() {
             {form.role === "Rider" && (
               <>
                 <label><span>Availability</span><select value={String(form.available)} onChange={(event) => updateField("available", event.target.value === "true")}><option value="true">Available</option><option value="false">Unavailable</option></select></label>
-                <label><span>Current Node</span><select value={form.currentNodeId} onChange={(event) => updateField("currentNodeId", event.target.value)}>{nodeOptions.map((node) => <option key={node}>{node}</option>)}</select></label>
+                <label><span>Current Node</span><select value={form.currentNodeId} onChange={(event) => updateField("currentNodeId", event.target.value)}>{nodeOptions.map((node) => <option value={node.nodeId} key={node.nodeId}>{node.name}</option>)}</select></label>
               </>
             )}
           </div>

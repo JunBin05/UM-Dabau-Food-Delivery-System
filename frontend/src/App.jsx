@@ -321,7 +321,7 @@ function renderPage(page, role, onNavigate, onSelectRole, cartItems, addCartItem
     case "customer-dashboard":
       return <CustomerDashboard onNavigate={onNavigate} cartItems={cartItems} />;
     case "browse-menu":
-      return <BrowseMenu initialCategory={browseCategory} cartItems={cartItems} onCartAdd={addCartItem} onCartRemove={removeCartItem} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
+      return <BrowseMenu initialCategory={browseCategory} cartItems={cartItems} onCartAdd={addCartItem} onCartRemove={removeCartItem} onNavigate={onNavigate} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
     case "cart":
       return <CartPreview items={cartItems} isLoading={isCartLoading} onRefreshCart={refreshCartItems} onUndoLastCartItem={undoLastCartItem} onAddItem={addCartItem} onRemoveItem={removeCartItem} onRemoveAllItem={removeAllCartItems} onNavigate={onNavigate} />;
     case "order-tracking":

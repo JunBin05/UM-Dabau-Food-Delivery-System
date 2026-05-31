@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.umdabau.config.DummyDataLoader;
+import com.umdabau.models.GraphNode;
 import com.umdabau.models.MenuItem;
 import com.umdabau.models.Order;
 import com.umdabau.models.Restaurant;
@@ -68,6 +69,9 @@ public class OperationsController {
         payload.put("alerts", alerts);
         payload.put("latestOrders", toOrderRows(queuedOrders));
         payload.put("latestRoute", route);
+        payload.put("activeRiders", toActiveRiderRows());
+        payload.put("pickupNodeId", deliveryService.getLatestPickupNodeId());
+        payload.put("dropoffNodeId", deliveryService.getLatestDropoffNodeId());
         return payload;
     }
 
@@ -84,6 +88,8 @@ public class OperationsController {
         payload.put("metrics", metrics);
         payload.put("orders", toOrderRows(queuedOrders));
         payload.put("latestRoute", deliveryService.getLatestRouteSummary());
+        payload.put("pickupNodeId", deliveryService.getLatestPickupNodeId());
+        payload.put("dropoffNodeId", deliveryService.getLatestDropoffNodeId());
         return payload;
     }
 
@@ -127,7 +133,14 @@ public class OperationsController {
         payload.put("earnings", route == null ? 0.0 : Math.max(4.5, route.getTotalDistanceKm() * 2.0));
         payload.put("assignedOrder", toActiveOrder());
         payload.put("latestRoute", route);
+        payload.put("pickupNodeId", deliveryService.getLatestPickupNodeId());
+        payload.put("dropoffNodeId", deliveryService.getLatestDropoffNodeId());
         return payload;
+    }
+
+    @GetMapping("/riders/active")
+    public List<Map<String, Object>> getActiveRiders() {
+        return toActiveRiderRows();
     }
 
     @GetMapping("/users")
@@ -198,13 +211,61 @@ public class OperationsController {
     @GetMapping("/locations")
     public List<Map<String, Object>> getLocations() {
         return List.of(
-            location("NODE_FSKTM", "Faculty of Computer Science and IT", 3.1278141116117237, 101.6502887915006),
-            location("NODE_LIBRARY", "UM Central Library", 3.120295528212342, 101.65459540772146),
-            location("NODE_UM_CENTRAL", "UM Central", 3.120983186798967, 101.65350583982082),
-            location("NODE_FOODY_AVENUE_HESHE12", "Foody Avenue KK12", 3.1258258595003636, 101.66148534130396),
-            location("NODE_ENGINEERING", "Engineering Quad", 3.118893241995705, 101.655915371057),
-            location("NODE_ZUS", "ZUS Coffee", 3.120509846723895, 101.65459257602762),
-            location("NODE_KK12_BLOCK_A", "KK12 Block A", 3.1265502054052776, 101.66117198357561)
+            graphLocation("NODE_KK8"),
+            graphLocation("NODE_CAFE_KK8"),
+            graphLocation("NODE_KK10"),
+            graphLocation("NODE_CAFE_KK10"),
+            graphLocation("NODE_FSKTM"),
+            graphLocation("NODE_APM"),
+            graphLocation("NODE_KK3"),
+            graphLocation("NODE_KK4&7"),
+            graphLocation("NODE_IT"),
+            graphLocation("NODE_FLL"),
+            graphLocation("NODE_KAFE_BAHASA"),
+            graphLocation("NODE_KK9"),
+            graphLocation("NODE_BAYU_CAFE"),
+            graphLocation("NODE_SCIENCE_FACULTY"),
+            graphLocation("NODE_KAFE_SAINS"),
+            graphLocation("NODE_KPS"),
+            graphLocation("NODE_DTC"),
+            graphLocation("NODE_PUSAT_ASASI_SAINS"),
+            graphLocation("NODE_UMX"),
+            graphLocation("NODE_IPS"),
+            graphLocation("NODE_YOGO"),
+            graphLocation("NODE_FOODY_AVENUE_HESHE12"),
+            graphLocation("NODE_KK12_BLOCK_A"),
+            graphLocation("NODE_KK12_BLOCK_B"),
+            graphLocation("NODE_NOVI_KAFE"),
+            graphLocation("NODE_UMCCED"),
+            graphLocation("NODE_KK5"),
+            graphLocation("NODE_WARONG_LIMA"),
+            graphLocation("NODE_KK11"),
+            graphLocation("NODE_KK11_FOODCOURT"),
+            graphLocation("NODE_UM_ARENA"),
+            graphLocation("NODE_API"),
+            graphLocation("NODE_Q_BISTRO"),
+            graphLocation("NODE_LAW"),
+            graphLocation("NODE_KK1"),
+            graphLocation("NODE_ASTAR_CAFE"),
+            graphLocation("NODE_EXAM_HALL"),
+            graphLocation("NODE_KK6"),
+            graphLocation("NODE_TOAST_KITA"),
+            graphLocation("NODE_BUILT_ENV"),
+            graphLocation("NODE_MEDI_CAFE"),
+            graphLocation("NODE_MEDICINE"),
+            graphLocation("NODE_PHARMACY"),
+            graphLocation("NODE_CAFE_KK2"),
+            graphLocation("NODE_KK2"),
+            graphLocation("NODE_ENGINEERING"),
+            graphLocation("NODE_ENG_CHICKEN_RICE"),
+            graphLocation("NODE_KH_SHAWARMA"),
+            graphLocation("NODE_LIBRARY"),
+            graphLocation("NODE_ZUS"),
+            graphLocation("NODE_UM_CENTRAL"),
+            graphLocation("Node_Study_Area"),
+            graphLocation("Node_Edu_Fac"),
+            graphLocation("NODE_FBE"),
+            graphLocation("NODE_POKOK_CAFE")
         );
     }
 
@@ -236,13 +297,22 @@ public class OperationsController {
         return location;
     }
 
+    private Map<String, Object> graphLocation(String nodeId) {
+        GraphNode node = deliveryService.getCampusMap().getNodeById(nodeId);
+        if (node == null) {
+            return location(nodeId, nodeId, 0, 0);
+        }
+
+        return location(node.nodeId, node.name, node.latitude, node.longitude);
+    }
+
     private List<Map<String, Object>> toOrderRows(List<Order> orders) {
         return orders.stream().map((order) -> {
             Map<String, Object> row = new LinkedHashMap<>();
             row.put("id", order.orderId);
             row.put("customer", order.customerId == null ? "Current customer" : order.customerId);
             row.put("vendor", order.restaurantId == null ? "Mixed restaurants" : order.restaurantId);
-            row.put("rider", order.assignedRiderId == null ? "Assign Rider" : order.assignedRiderId);
+            row.put("rider", order.assignedRiderId == null ? "Assign Rider" : riderName(order.assignedRiderId));
             row.put("status", order.status);
             row.put("total", order.totalPrice);
             row.put("pickup", order.restaurantId == null ? "Restaurant" : order.restaurantId);
@@ -253,6 +323,26 @@ public class OperationsController {
         }).toList();
     }
 
+    private List<Map<String, Object>> toActiveRiderRows() {
+        return deliveryService.getRiderHeap().toList().stream()
+            .map(this::toActiveRiderRow)
+            .toList();
+    }
+
+    private Map<String, Object> toActiveRiderRow(User rider) {
+        GraphNode node = deliveryService.getCampusMap().getNodeById(rider.getCurrentNodeId());
+        Map<String, Object> row = new LinkedHashMap<>();
+        row.put("userId", rider.getUserId());
+        row.put("fullName", rider.getFullName());
+        row.put("status", rider.getStatus());
+        row.put("available", rider.isAvailable());
+        row.put("currentNodeId", rider.getCurrentNodeId());
+        row.put("nodeName", node == null ? rider.getCurrentNodeId() : node.name);
+        row.put("latitude", node == null ? 0 : node.latitude);
+        row.put("longitude", node == null ? 0 : node.longitude);
+        return row;
+    }
+
     private Map<String, Object> toActiveOrder() {
         Order order = deliveryService.getLatestDispatchedOrder();
         RouteSummary route = deliveryService.getLatestRouteSummary();
@@ -260,11 +350,22 @@ public class OperationsController {
         activeOrder.put("id", order == null ? "No dispatched order" : order.orderId);
         activeOrder.put("vendor", order == null ? "Awaiting dispatch" : order.restaurantId);
         activeOrder.put("destination", order == null ? "No active destination" : order.deliveryNodeId);
-        activeOrder.put("rider", route == null ? "Unassigned" : route.getAssignedRiderId());
+        activeOrder.put("rider", route == null ? "Unassigned" : riderName(route.getAssignedRiderId()));
+        activeOrder.put("riderId", route == null ? "" : route.getAssignedRiderId());
         activeOrder.put("status", order == null ? "No Active Delivery" : order.status);
         activeOrder.put("eta", latestEta());
         activeOrder.put("total", order == null ? 0.0 : order.totalPrice);
+        activeOrder.put("timestamp", order == null ? 0 : order.timestamp);
         return activeOrder;
+    }
+
+    private String riderName(String riderId) {
+        if (riderId == null || riderId.isBlank()) {
+            return "Unassigned";
+        }
+
+        User rider = deliveryService.getUsers().findUserById(riderId);
+        return rider == null ? riderId : rider.getFullName();
     }
 
     private String latestEta() {

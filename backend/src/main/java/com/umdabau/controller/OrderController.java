@@ -141,12 +141,30 @@ public class OrderController {
         }
 
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("message", assigned ? "Driver found! Your order is now on the way." : "Order queued. Waiting for an available rider.");
+        String riderName = deliveryService.getLatestAssignedRider() == null ? "" : deliveryService.getLatestAssignedRider().getFullName();
+        response.put("message", assigned ? "Driver found: " + riderName + ". Your order is now on the way." : "Order queued. Waiting for an available rider.");
         response.put("orderId", newOrder.orderId);
         response.put("assigned", assigned);
         response.put("routeSummary", routeSummary);
+        response.put("riderName", riderName);
         response.put("pendingOrders", deliveryService.getOrderQueue().getSize());
         
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/received")
+    public ResponseEntity<Map<String, Object>> markOrderReceived() {
+        Order completedOrder = deliveryService.completeLatestDelivery();
+
+        if (completedOrder == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "No active delivery to complete."));
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("message", "Order received. Delivery completed.");
+        response.put("orderId", completedOrder.orderId);
+        response.put("status", completedOrder.status);
+        response.put("availableRiders", deliveryService.getRiderHeap().getSize());
         return ResponseEntity.ok(response);
     }
 

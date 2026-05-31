@@ -1,7 +1,55 @@
 import React, { useEffect, useMemo, useState } from "react";
+import L from "leaflet";
 import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
-import { fetchJson } from "../api/liveApi.js";
+import { fetchJson, postJson } from "../api/liveApi.js";
+
+const markerIcons = {
+  driver: L.divIcon({
+    className: "delivery-map-marker driver-marker",
+    html: '<span class="material-symbols-outlined">two_wheeler</span>',
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
+    popupAnchor: [0, -20]
+  }),
+  cafe: L.divIcon({
+    className: "delivery-map-marker cafe-marker",
+    html: '<span class="material-symbols-outlined">restaurant</span>',
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
+    popupAnchor: [0, -20]
+  }),
+  user: L.divIcon({
+    className: "delivery-map-marker user-marker",
+    html: '<span class="material-symbols-outlined">person_pin_circle</span>',
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
+    popupAnchor: [0, -20]
+  })
+};
+const DRIVER_STEP_MS = 1400;
+
+function trackingStorageKey(orderId) {
+  return `um-dabau-tracking-start-${orderId}`;
+}
+
+function getStoredStartTime(orderId, fallbackStartTime) {
+  if (!orderId) {
+    return Date.now();
+  }
+
+  const key = trackingStorageKey(orderId);
+  const storedStartTime = Number(window.localStorage.getItem(key));
+  if (Number.isFinite(storedStartTime) && storedStartTime > 0) {
+    return storedStartTime;
+  }
+
+  const startTime = Number.isFinite(Number(fallbackStartTime)) && Number(fallbackStartTime) > 0
+    ? Number(fallbackStartTime)
+    : Date.now();
+  window.localStorage.setItem(key, String(startTime));
+  return startTime;
+}
 
 function findNodeIndex(path, nodeId, fallbackIndex) {
   const index = path.findIndex((node) => node.nodeId === nodeId);
@@ -11,9 +59,9 @@ function findNodeIndex(path, nodeId, fallbackIndex) {
 function getPhase(driverIndex, pickupIndex, finalIndex) {
   if (finalIndex <= 0) {
     return {
-      headline: "Finding Driver",
-      status: "Assigning",
-      description: "We are preparing your dispatch route.",
+      headline: "No order right now",
+      status: "No Active Order",
+      description: "Place an order to start live delivery tracking.",
       activeStep: 0
     };
   }
@@ -55,11 +103,16 @@ function getPhase(driverIndex, pickupIndex, finalIndex) {
 
 export default function OrderTracking({ onNavigate = () => {} }) {
   const [tracking, setTracking] = useState({ order: {}, route: null, items: [], deliveryFee: 0, platformFee: 0, pickupNodeId: "", dropoffNodeId: "" });
-  const [driverIndex, setDriverIndex] = useState(0);
+  const [routeStartTime, setRouteStartTime] = useState(0);
+  const [simulationNow, setSimulationNow] = useState(Date.now());
+  const [completionMessage, setCompletionMessage] = useState("");
   const order = tracking.order || {};
   const route = tracking.route;
   const path = route?.path || [];
   const finalIndex = Math.max(path.length - 1, 0);
+  const driverIndex = routeStartTime > 0
+    ? Math.min(Math.max(Math.floor((simulationNow - routeStartTime) / DRIVER_STEP_MS), 0), finalIndex)
+    : 0;
   const pickupIndex = findNodeIndex(path, tracking.pickupNodeId, Math.floor(finalIndex / 2));
   const driverNode = path[driverIndex];
   const pickupNode = path[pickupIndex];
@@ -69,13 +122,34 @@ export default function OrderTracking({ onNavigate = () => {} }) {
   const subtotal = useMemo(() => tracking.items.reduce((total, item) => total + Number(item.price || 0), 0), [tracking.items]);
   const total = subtotal + Number(tracking.deliveryFee || 0) + Number(tracking.platformFee || 0);
 
-  useEffect(() => {
-    fetchJson("/live/customer/tracking")
+  function loadTracking() {
+    return fetchJson("/live/customer/tracking")
       .then((data) => {
         setTracking(data);
-        setDriverIndex(0);
+        const orderId = data.order?.id || data.route?.orderId;
+        setRouteStartTime(data.route ? getStoredStartTime(orderId, data.order?.timestamp) : 0);
+        setSimulationNow(Date.now());
       })
       .catch((error) => console.error("Failed to load tracking:", error));
+  }
+
+  function markOrderReceived() {
+    postJson("/orders/received")
+      .then((result) => {
+        if (route?.orderId) {
+          window.localStorage.removeItem(trackingStorageKey(route.orderId));
+        }
+        setCompletionMessage(result.message);
+        return loadTracking();
+      })
+      .catch((error) => {
+        console.error("Failed to complete delivery:", error);
+        setCompletionMessage("Could not complete delivery. Please try again.");
+      });
+  }
+
+  useEffect(() => {
+    loadTracking();
   }, []);
 
   useEffect(() => {
@@ -84,8 +158,8 @@ export default function OrderTracking({ onNavigate = () => {} }) {
     }
 
     const timer = window.setInterval(() => {
-      setDriverIndex((current) => Math.min(current + 1, finalIndex));
-    }, 1400);
+      setSimulationNow(Date.now());
+    }, DRIVER_STEP_MS);
 
     return () => window.clearInterval(timer);
   }, [driverIndex, finalIndex, path.length]);
@@ -113,7 +187,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
         <div className="tracking-map-toolbar">
           <div>
             <strong>Order {order.id || "pending"}</strong>
-            <span>{route ? `${route.totalDistanceKm.toFixed(2)} km route - ${Math.ceil(route.estimatedTimeMinutes)} min ETA` : "Waiting for driver assignment"}</span>
+            <span>{route ? `${route.totalDistanceKm.toFixed(2)} km route - ${Math.ceil(route.estimatedTimeMinutes)} min ETA` : "No order right now"}</span>
           </div>
           <button className="primary-button" type="button" onClick={() => onNavigate("map-tracker")}>
             View Full Map
@@ -126,17 +200,17 @@ export default function OrderTracking({ onNavigate = () => {} }) {
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
             {routePositions.length > 1 && <Polyline positions={routePositions} pathOptions={{ color: "#16a34a", weight: 6, opacity: 0.78 }} />}
             {pickupNode && (
-              <Marker position={[pickupNode.latitude, pickupNode.longitude]}>
+              <Marker icon={markerIcons.cafe} position={[pickupNode.latitude, pickupNode.longitude]}>
                 <Popup><strong>Cafe pickup</strong><br />{pickupNode.name}</Popup>
               </Marker>
             )}
             {dropoffNode && (
-              <Marker position={[dropoffNode.latitude, dropoffNode.longitude]}>
+              <Marker icon={markerIcons.user} position={[dropoffNode.latitude, dropoffNode.longitude]}>
                 <Popup><strong>Your location</strong><br />{dropoffNode.name}</Popup>
               </Marker>
             )}
             {driverNode && (
-              <Marker position={[driverNode.latitude, driverNode.longitude]}>
+              <Marker icon={markerIcons.driver} position={[driverNode.latitude, driverNode.longitude]}>
                 <Popup><strong>Driver</strong><br />{order.rider || route?.assignedRiderId}</Popup>
               </Marker>
             )}
@@ -203,6 +277,13 @@ export default function OrderTracking({ onNavigate = () => {} }) {
             <div><dt>Tax / platform fee</dt><dd>RM {Number(tracking.platformFee || 0).toFixed(2)}</dd></div>
             <div className="total"><dt>Total</dt><dd>RM {total.toFixed(2)}</dd></div>
           </dl>
+          {phase.activeStep === 4 && route && (
+            <button className="primary-button full" type="button" onClick={markOrderReceived}>
+              <span className="material-symbols-outlined">task_alt</span>
+              Order Received
+            </button>
+          )}
+          {completionMessage && <p className="muted">{completionMessage}</p>}
         </article>
       </section>
     </div>

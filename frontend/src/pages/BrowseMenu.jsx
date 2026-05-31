@@ -9,7 +9,7 @@ function restaurantName(restaurant) {
   return restaurant.restaurantName || restaurant.name;
 }
 
-export default function BrowseMenu({ initialCategory = "All Items", cartItems = [], onCartAdd = () => {}, onCartRemove = () => {}, cartCount = 0 }) {
+export default function BrowseMenu({ initialCategory = "All Items", cartItems = [], onCartAdd = () => {}, onCartRemove = () => {}, onNavigate = () => {}, cartCount = 0 }) {
   const [categories, setCategories] = useState(["All Items"]);
   const [restaurants, setRestaurants] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
@@ -55,7 +55,9 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
 
   function handleAdd(item) {
     Promise.resolve(onCartAdd(item)).then((wasAdded) => {
-      if (wasAdded !== false) setLastAdded(item.name);
+      if (wasAdded !== false) {
+        setLastAdded(item.name);
+      }
     });
   }
 
@@ -111,6 +113,11 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
 
   return (
     <div className="page-stack browse-menu-page">
+      <button className="floating-cart-button" type="button" onClick={() => onNavigate("cart")} aria-label="Open cart">
+        <span className="material-symbols-outlined">shopping_bag</span>
+        {cartCount > 0 && <strong>{cartCount}</strong>}
+      </button>
+
       <section className="menu-hero card">
         <div className="menu-hero-top">
           <div>

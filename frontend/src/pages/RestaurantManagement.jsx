@@ -10,12 +10,12 @@ const emptyRestaurantForm = {
   nodeId: "NODE_UM_CENTRAL"
 };
 
-const categoryOptions = ["Malay Food", "Malay Snacks", "Western", "Drinks", "Vegetarian", "Cafe"];
+const categoryOptions = ["Cafe", "Malay", "Malay Snacks", "Chinese", "Western", "Mamak", "Middle Eastern", "Healthy", "Drinks", "Vegetarian", "Snacks"];
 const statusOptions = ["Open", "Closed"];
-const nodeOptions = ["NODE_UM_CENTRAL", "NODE_FSKTM", "NODE_KK12_BLOCK_A", "NODE_LIBRARY", "NODE_ENGINEERING", "NODE_ZUS", "NODE_FOODY_AVENUE_HESHE12"];
 
 export default function RestaurantManagement() {
   const [restaurantRows, setRestaurantRows] = useState([]);
+  const [nodeOptions, setNodeOptions] = useState([]);
   const [form, setForm] = useState(emptyRestaurantForm);
   const [editingId, setEditingId] = useState("");
 
@@ -29,6 +29,9 @@ export default function RestaurantManagement() {
 
   useEffect(() => {
     loadRestaurants();
+    fetchJson("/live/locations")
+      .then(setNodeOptions)
+      .catch((error) => console.error("Failed to load graph node options:", error));
   }, []);
 
   function updateField(field, value) {
@@ -104,7 +107,7 @@ export default function RestaurantManagement() {
             <label><span>Category</span><select value={form.category} onChange={(event) => updateField("category", event.target.value)}>{categoryOptions.map((category) => <option key={category}>{category}</option>)}</select></label>
             <label><span>Open/Closed Status</span><select value={form.status} onChange={(event) => updateField("status", event.target.value)}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</select></label>
             <label><span>Campus location</span><input value={form.campusLocation} onChange={(event) => updateField("campusLocation", event.target.value)} required /></label>
-            <label><span>Node ID</span><select value={form.nodeId} onChange={(event) => updateField("nodeId", event.target.value)}>{nodeOptions.map((node) => <option key={node}>{node}</option>)}</select></label>
+            <label><span>Node ID</span><select value={form.nodeId} onChange={(event) => updateField("nodeId", event.target.value)}>{nodeOptions.map((node) => <option value={node.nodeId} key={node.nodeId}>{node.name}</option>)}</select></label>
           </div>
 
           <button className="primary-button full" type="submit">

@@ -1,5 +1,8 @@
 package com.umdabau.controller; // or package service; if you made a new folder
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 
 import com.umdabau.data_structures.OrderQueue;
@@ -27,8 +30,10 @@ public class DeliveryService {
     private final RestaurantList restaurants = new RestaurantList();
     private RouteSummary latestRouteSummary;
     private Order latestDispatchedOrder;
+    private User latestAssignedRider;
     private String latestPickupNodeId;
     private String latestDropoffNodeId;
+    private int simulationRiderSequence = 1;
 
     public DeliveryService() {
         campusMap.initializeCampusMap();
@@ -72,6 +77,10 @@ public class DeliveryService {
         this.latestDispatchedOrder = latestDispatchedOrder;
     }
 
+    public User getLatestAssignedRider() {
+        return latestAssignedRider;
+    }
+
     public String getLatestPickupNodeId() {
         return latestPickupNodeId;
     }
@@ -85,7 +94,11 @@ public class DeliveryService {
             return null;
         }
 
-        ensureAvailableRider();
+        Order orderToAssign = globalOrderQueue.peek();
+        String restaurantNode = getRestaurantNode(orderToAssign);
+
+        ensureAvailableRider(restaurantNode);
+        reprioritizeRidersForRestaurant(restaurantNode);
 
         if (globalRiderHeap.isEmpty()) {
             return null;
@@ -100,7 +113,6 @@ public class DeliveryService {
         bestRider.setStatus("ASSIGNED");
 
         String riderNode = getStartNode(bestRider);
-        String restaurantNode = getRestaurantNode(nextOrder);
         String customerNode = getCustomerNode(nextOrder);
 
         RouteSummary riderToRestaurant = campusMap.runDijkstra(
@@ -118,11 +130,97 @@ public class DeliveryService {
         RouteSummary routeSummary = combineRouteSummaries(riderToRestaurant, restaurantToCustomer);
 
         latestDispatchedOrder = nextOrder;
+        latestAssignedRider = bestRider;
         latestRouteSummary = routeSummary;
         latestPickupNodeId = restaurantNode;
         latestDropoffNodeId = customerNode;
 
         return routeSummary;
+    }
+
+    public Order completeLatestDelivery() {
+        if (latestDispatchedOrder == null) {
+            return null;
+        }
+
+        Order completedOrder = latestDispatchedOrder;
+        completedOrder.status = "DELIVERED";
+
+        User rider = latestAssignedRider;
+        if (rider == null && completedOrder.assignedRiderId != null) {
+            rider = users.findUserById(completedOrder.assignedRiderId);
+        }
+
+        if (rider != null) {
+            rider.setAvailable(true);
+            rider.setStatus("Active");
+            rider.setCurrentNodeId(latestDropoffNodeId == null ? DEFAULT_DELIVERY_NODE_ID : latestDropoffNodeId);
+            globalRiderHeap.insert(rider, 1.0);
+        }
+
+        latestDispatchedOrder = null;
+        latestAssignedRider = null;
+        latestRouteSummary = null;
+        latestPickupNodeId = null;
+        latestDropoffNodeId = null;
+
+        return completedOrder;
+    }
+
+    private void reprioritizeRidersForRestaurant(String restaurantNode) {
+        List<User> availableRiders = new ArrayList<>();
+
+        while (!globalRiderHeap.isEmpty()) {
+            User rider = globalRiderHeap.pop();
+            if (rider != null && rider.isAvailable()) {
+                availableRiders.add(rider);
+            }
+        }
+
+        for (User rider : availableRiders) {
+            double distanceScore = getDistanceToRestaurant(rider, restaurantNode);
+            globalRiderHeap.insert(rider, distanceScore);
+        }
+    }
+
+    private double getDistanceToRestaurant(User rider, String restaurantNode) {
+        try {
+            RouteSummary route = campusMap.runDijkstra(
+                getStartNode(rider),
+                restaurantNode,
+                "RIDER_PRIORITY",
+                rider.getUserId()
+            );
+
+            return route.getTotalDistanceKm();
+        } catch (IllegalArgumentException error) {
+            return Double.MAX_VALUE;
+        }
+    }
+
+    public List<User> spawnSimulationRiders(String requestedNodeId, int requestedCount) {
+        int count = Math.max(1, Math.min(requestedCount, 25));
+        String nodeId = normalizeNodeId(requestedNodeId, DEFAULT_RIDER_NODE_ID);
+        List<User> spawnedRiders = new ArrayList<>();
+
+        for (int i = 0; i < count; i++) {
+            int riderNumber = simulationRiderSequence++;
+            User simulationRider = new User(
+                "SIM-RIDER-" + riderNumber,
+                "Simulation Rider " + riderNumber,
+                "simulation.rider." + riderNumber + "@umdabau.local",
+                "Rider",
+                "Active",
+                true,
+                nodeId
+            );
+
+            users.addUser(simulationRider);
+            globalRiderHeap.insert(simulationRider, riderNumber);
+            spawnedRiders.add(simulationRider);
+        }
+
+        return spawnedRiders;
     }
 
     private void seedUsers() {
@@ -140,30 +238,33 @@ public class DeliveryService {
     }
 
     private void seedRestaurants() {
-        restaurants.addRestaurant(new Restaurant("REST-001", "Campus Cafe", "Malay & Chinese", "Open", "UM Central", "NODE_UM_CENTRAL"));
-        restaurants.addRestaurant(new Restaurant("REST-002", "KK12 Quick Bites", "Malay Snacks", "Open", "KK12 Food Court", "NODE_FOODY_AVENUE_HESHE12"));
-        restaurants.addRestaurant(new Restaurant("REST-003", "Central Eatery Malay Corner", "Malay", "Open", "UM Central", "NODE_UM_CENTRAL"));
-        restaurants.addRestaurant(new Restaurant("REST-004", "Engineering Bites", "Western", "Open", "Engineering Quad", "NODE_ENGINEERING"));
-        restaurants.addRestaurant(new Restaurant("REST-005", "Dabau Drinks Lab", "Drinks", "Open", "Library", "NODE_ZUS"));
-        restaurants.addRestaurant(new Restaurant("REST-006", "Library Greens", "Vegetarian", "Closed", "Library", "NODE_LIBRARY"));
+        restaurants.addRestaurant(new Restaurant("REST-001", "Cafe KK8", "Cafe", "Open", "Kinabalu Residential College", "NODE_CAFE_KK8"));
+        restaurants.addRestaurant(new Restaurant("REST-002", "Cafe KK10", "Cafe", "Open", "Tun Ahmad Zaidi Residential College", "NODE_CAFE_KK10"));
+        restaurants.addRestaurant(new Restaurant("REST-003", "Kafe Bahasa", "Malay", "Open", "Faculty of Languages and Linguistics", "NODE_KAFE_BAHASA"));
+        restaurants.addRestaurant(new Restaurant("REST-004", "Bayu Cafe", "Malay", "Open", "Science Faculty", "NODE_BAYU_CAFE"));
+        restaurants.addRestaurant(new Restaurant("REST-005", "Kafe Sains", "Vegetarian", "Open", "Science Faculty", "NODE_KAFE_SAINS"));
+        restaurants.addRestaurant(new Restaurant("REST-006", "Yogo @ Universiti Malaya", "Snacks", "Open", "IPS / KK12 Route", "NODE_YOGO"));
+        restaurants.addRestaurant(new Restaurant("REST-007", "Foody Avenue & He & She Coffee", "Malay Snacks", "Open", "KK12 Food Court", "NODE_FOODY_AVENUE_HESHE12"));
+        restaurants.addRestaurant(new Restaurant("REST-008", "Novi Kafe", "Cafe", "Open", "KK12", "NODE_NOVI_KAFE"));
+        restaurants.addRestaurant(new Restaurant("REST-009", "Warong Kaki Lima", "Malay", "Open", "KK5", "NODE_WARONG_LIMA"));
+        restaurants.addRestaurant(new Restaurant("REST-010", "Q Bistro Universiti Malaya", "Mamak", "Open", "KL Gate", "NODE_Q_BISTRO"));
+        restaurants.addRestaurant(new Restaurant("REST-011", "ASTAR Cafe", "Malay", "Open", "First College", "NODE_ASTAR_CAFE"));
+        restaurants.addRestaurant(new Restaurant("REST-012", "Toast Kita Cafe", "Cafe", "Open", "KK6", "NODE_TOAST_KITA"));
+        restaurants.addRestaurant(new Restaurant("REST-013", "MediCafe", "Healthy", "Open", "Faculty of Medicine", "NODE_MEDI_CAFE"));
+        restaurants.addRestaurant(new Restaurant("REST-014", "Cafe KK2", "Cafe", "Open", "Tuanku Bahiyah Residential College", "NODE_CAFE_KK2"));
+        restaurants.addRestaurant(new Restaurant("REST-015", "Engineering Fac Chicken Rice", "Chinese", "Open", "Engineering", "NODE_ENG_CHICKEN_RICE"));
+        restaurants.addRestaurant(new Restaurant("REST-016", "KH Shawarma", "Middle Eastern", "Open", "Engineering", "NODE_KH_SHAWARMA"));
+        restaurants.addRestaurant(new Restaurant("REST-017", "ZUS Coffee", "Drinks", "Open", "UM Central Library", "NODE_ZUS"));
+        restaurants.addRestaurant(new Restaurant("REST-018", "UM Central & He & She Coffee", "Cafe", "Open", "UM Central", "NODE_UM_CENTRAL"));
+        restaurants.addRestaurant(new Restaurant("REST-019", "POKOK KL Cafe", "Cafe", "Open", "Faculty of Business & Economics", "NODE_POKOK_CAFE"));
     }
 
-    private void ensureAvailableRider() {
+    private void ensureAvailableRider(String fallbackNodeId) {
         if (!globalRiderHeap.isEmpty()) {
             return;
         }
 
-        User simulationRider = new User(
-            "SIM-RIDER-" + System.currentTimeMillis(),
-            "Simulation Rider",
-            "simulation.rider@umdabau.local",
-            "Rider",
-            "Active",
-            true,
-            DEFAULT_RIDER_NODE_ID
-        );
-        users.addUser(simulationRider);
-        globalRiderHeap.insert(simulationRider, 1.0);
+        spawnSimulationRiders(fallbackNodeId, 1);
     }
 
     private String getStartNode(User rider) {
@@ -191,18 +292,35 @@ public class DeliveryService {
     }
 
     private String normalizeNodeId(String nodeId, String fallbackNodeId) {
+        if (nodeId == null || nodeId.isBlank()) {
+            return fallbackNodeId;
+        }
+
         String resolvedNodeId = switch (nodeId) {
             case "CENTRAL_EATERY" -> "NODE_UM_CENTRAL";
             case "ENGINEERING_QUAD" -> "NODE_ENGINEERING";
             case "LIBRARY" -> "NODE_LIBRARY";
             case "FSKTM_BLOCK_A" -> "NODE_FSKTM";
             case "KK12" -> "NODE_KK12_BLOCK_A";
-            case "REST-001" -> "NODE_UM_CENTRAL";
-            case "REST-002" -> "NODE_FOODY_AVENUE_HESHE12";
-            case "REST-003" -> "NODE_UM_CENTRAL";
-            case "REST-004" -> "NODE_ENGINEERING";
-            case "REST-005" -> "NODE_ZUS";
-            case "REST-006" -> "NODE_LIBRARY";
+            case "REST-001" -> "NODE_CAFE_KK8";
+            case "REST-002" -> "NODE_CAFE_KK10";
+            case "REST-003" -> "NODE_KAFE_BAHASA";
+            case "REST-004" -> "NODE_BAYU_CAFE";
+            case "REST-005" -> "NODE_KAFE_SAINS";
+            case "REST-006" -> "NODE_YOGO";
+            case "REST-007" -> "NODE_FOODY_AVENUE_HESHE12";
+            case "REST-008" -> "NODE_NOVI_KAFE";
+            case "REST-009" -> "NODE_WARONG_LIMA";
+            case "REST-010" -> "NODE_Q_BISTRO";
+            case "REST-011" -> "NODE_ASTAR_CAFE";
+            case "REST-012" -> "NODE_TOAST_KITA";
+            case "REST-013" -> "NODE_MEDI_CAFE";
+            case "REST-014" -> "NODE_CAFE_KK2";
+            case "REST-015" -> "NODE_ENG_CHICKEN_RICE";
+            case "REST-016" -> "NODE_KH_SHAWARMA";
+            case "REST-017" -> "NODE_ZUS";
+            case "REST-018" -> "NODE_UM_CENTRAL";
+            case "REST-019" -> "NODE_POKOK_CAFE";
             default -> nodeId;
         };
 

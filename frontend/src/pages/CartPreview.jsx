@@ -1,9 +1,25 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchJson } from "../api/liveApi.js";
 
+function distanceKm(pointA, pointB) {
+  const earthRadiusKm = 6371;
+  const toRadians = (value) => (value * Math.PI) / 180;
+  const latDistance = toRadians(pointB.latitude - pointA.latitude);
+  const lngDistance = toRadians(pointB.longitude - pointA.longitude);
+  const lat1 = toRadians(pointA.latitude);
+  const lat2 = toRadians(pointB.latitude);
+  const haversine = Math.sin(latDistance / 2) ** 2
+    + Math.cos(lat1) * Math.cos(lat2) * Math.sin(lngDistance / 2) ** 2;
+
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+}
+
 export default function CartPreview({ items = [], isLoading = false, onRefreshCart = () => {}, onUndoLastCartItem = () => {}, onAddItem = () => {}, onRemoveItem = () => {}, onRemoveAllItem = () => {}, onNavigate = () => {} }) {
   const [checkoutMessage, setCheckoutMessage] = useState("");
   const [delivery, setDelivery] = useState({ deliveryAddress: "Loading delivery point...", deliveryNodeId: "NODE_KK12_BLOCK_A", deliveryFee: 0, platformFee: 0 });
+  const [locations, setLocations] = useState([]);
+  const [locationMessage, setLocationMessage] = useState("");
+  const [isLocating, setIsLocating] = useState(false);
   const subtotal = useMemo(() => items.reduce((total, item) => total + item.price * item.qty, 0), [items]);
 
   useEffect(() => {
@@ -11,7 +27,59 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
     fetchJson("/live/customer/home")
       .then((home) => setDelivery({ deliveryAddress: home.deliveryAddress, deliveryNodeId: home.deliveryNodeId, deliveryFee: home.deliveryFee, platformFee: home.platformFee }))
       .catch((error) => console.error("Failed to load delivery point:", error));
+    fetchJson("/live/locations")
+      .then(setLocations)
+      .catch((error) => console.error("Failed to load delivery locations:", error));
   }, [onRefreshCart]);
+
+  function selectDeliveryNode(nodeId, sourceMessage = "") {
+    const location = locations.find((entry) => entry.nodeId === nodeId);
+
+    setDelivery((current) => ({
+      ...current,
+      deliveryNodeId: nodeId,
+      deliveryAddress: location?.name || nodeId
+    }));
+    setLocationMessage(sourceMessage);
+  }
+
+  function useCurrentLocation() {
+    if (!navigator.geolocation) {
+      setLocationMessage("Current location is not available in this browser.");
+      return;
+    }
+
+    if (locations.length === 0) {
+      setLocationMessage("Delivery locations are still loading.");
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationMessage("Finding nearest campus delivery point...");
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const currentPoint = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude
+        };
+        const nearestLocation = locations
+          .map((location) => ({ ...location, distance: distanceKm(currentPoint, location) }))
+          .sort((first, second) => first.distance - second.distance)[0];
+
+        if (nearestLocation) {
+          selectDeliveryNode(nearestLocation.nodeId, `Nearest point selected: ${nearestLocation.name}.`);
+        }
+        setIsLocating(false);
+      },
+      (error) => {
+        console.error("Failed to use browser location:", error);
+        setLocationMessage("Could not access current location. Please select a delivery point.");
+        setIsLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 9000, maximumAge: 60000 }
+    );
+  }
 
   function checkout() {
     setCheckoutMessage("");
@@ -58,6 +126,18 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
           <p className="eyebrow">Deliver to</p>
           <strong>{delivery.deliveryAddress}</strong>
           <small>{delivery.deliveryNodeId}</small>
+          <div className="delivery-location-controls">
+            <select value={delivery.deliveryNodeId} onChange={(event) => selectDeliveryNode(event.target.value)}>
+              {locations.map((location) => (
+                <option value={location.nodeId} key={location.nodeId}>{location.name}</option>
+              ))}
+            </select>
+            <button className="secondary-button small-button" type="button" onClick={useCurrentLocation} disabled={isLocating}>
+              <span className="material-symbols-outlined">my_location</span>
+              {isLocating ? "Locating" : "Use Current Location"}
+            </button>
+          </div>
+          {locationMessage && <small>{locationMessage}</small>}
         </div>
       </section>
 

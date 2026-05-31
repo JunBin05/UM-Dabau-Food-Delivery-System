@@ -1,5 +1,8 @@
 package com.umdabau.data_structures;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.umdabau.models.User;
 
 /**
@@ -93,6 +96,16 @@ public class RiderHeap {
 
     public int getSize() {
         return size;
+    }
+
+    public List<User> toList() {
+        List<User> riders = new ArrayList<>();
+
+        for (int i = 0; i < size; i++) {
+            riders.add(heap[i].rider);
+        }
+
+        return riders;
     }
 
     /**
