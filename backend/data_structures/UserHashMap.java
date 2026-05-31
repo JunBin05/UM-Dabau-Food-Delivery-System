@@ -1,5 +1,5 @@
-package com.umdabau.datastructures;
-import com.umdabau.models.User; 
+package data_structures;
+import models.User; 
 
 public class UserHashMap {
     

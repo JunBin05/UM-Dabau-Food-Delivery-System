@@ -1,4 +1,4 @@
-package com.umdabau.models;
+package data_structures;
 
 public class MenuItem {
     // 🚨 synchronized with API_CONTRACT.md

@@ -1,5 +1,5 @@
-package com.umdabau.datastructures;
-import com.umdabau.models.MenuItem;
+package data_structures;
+import models.MenuItem;
 
 public class MenuBST {
 
