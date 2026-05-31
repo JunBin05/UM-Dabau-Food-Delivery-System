@@ -1,5 +1,8 @@
 package com.umdabau.data_structures;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.umdabau.models.User;
 
 public class UserList {
@@ -139,6 +142,18 @@ public class UserList {
     // getSize: O(1)
     public int getSize() {
         return size;
+    }
+
+    public List<User> toList() {
+        List<User> users = new ArrayList<>();
+        UserNode current = head;
+
+        while (current != null) {
+            users.add(current.data);
+            current = current.next;
+        }
+
+        return users;
     }
 
     // Clear the list by removing references to the first and last node: O(1)

@@ -1,31 +1,25 @@
-import React from "react";
-import { activeOrder } from "../data/mockData.js";
-
-const trackingSteps = [
-  { label: "Order Placed", time: "12:10 PM", done: true },
-  { label: "Food Prepared", time: "12:24 PM", done: true },
-  { label: "Out for Delivery", time: "12:32 PM", done: true, active: true },
-  { label: "Delivered pending", time: "Awaiting arrival", done: false }
-];
-
-const rider = {
-  name: "Marcus T.",
-  role: "UM-Dabau Logistics",
-  initials: "MT"
-};
-
-const orderItems = [
-  { id: "TRACK-001", qty: 1, name: "Grilled Chicken Pesto Wrap", total: 8.5 },
-  { id: "TRACK-002", qty: 1, name: "Iced Matcha Latte", total: 5 },
-  { id: "TRACK-003", qty: 2, name: "Chocolate Chip Cookie", total: 4 }
-];
-
-const deliveryFee = 2;
-const platformFee = 0.92;
+import React, { useEffect, useMemo, useState } from "react";
+import { fetchJson } from "../api/liveApi.js";
 
 export default function OrderTracking({ onNavigate = () => {} }) {
-  const subtotal = orderItems.reduce((total, item) => total + item.total, 0);
-  const total = subtotal + deliveryFee + platformFee;
+  const [tracking, setTracking] = useState({ order: {}, route: null, items: [], deliveryFee: 0, platformFee: 0 });
+  const order = tracking.order || {};
+  const route = tracking.route;
+  const subtotal = useMemo(() => tracking.items.reduce((total, item) => total + Number(item.price || 0), 0), [tracking.items]);
+  const total = subtotal + Number(tracking.deliveryFee || 0) + Number(tracking.platformFee || 0);
+
+  useEffect(() => {
+    fetchJson("/live/customer/tracking")
+      .then(setTracking)
+      .catch((error) => console.error("Failed to load tracking:", error));
+  }, []);
+
+  const trackingSteps = [
+    { label: "Order Queued", time: order.id || "Pending", done: order.status !== "No Active Delivery" },
+    { label: "Rider Assigned", time: order.rider || "Unassigned", done: Boolean(route) },
+    { label: "Route Calculated", time: route ? `${Math.ceil(route.estimatedTimeMinutes)} min ETA` : "Awaiting dispatch", done: Boolean(route), active: Boolean(route) },
+    { label: "Delivered", time: "Awaiting arrival", done: false }
+  ];
 
   return (
     <div className="page-stack order-tracking-page">
@@ -33,16 +27,16 @@ export default function OrderTracking({ onNavigate = () => {} }) {
         <div>
           <p className="eyebrow">Live tracking</p>
           <h2>Live Tracking</h2>
-          <span>Order #{activeOrder.id} &middot; {activeOrder.vendor}</span>
+          <span>Order {order.id || "pending"} &middot; {order.vendor || "Awaiting dispatch"}</span>
         </div>
-        <span className="status-chip blue">{activeOrder.status}</span>
+        <span className="status-chip blue">{order.status || "No Active Delivery"}</span>
       </section>
 
       <section className="card tracking-map-card">
         <div className="tracking-map-toolbar">
           <div>
             <strong>Campus route preview</strong>
-            <span>Restaurant to Engineering Block C</span>
+            <span>{route ? `${route.totalDistanceKm.toFixed(2)} km total route` : "Dispatch route not assigned yet"}</span>
           </div>
           <button className="primary-button" type="button" onClick={() => onNavigate("map-tracker")}>
             View Full Map
@@ -53,17 +47,14 @@ export default function OrderTracking({ onNavigate = () => {} }) {
           <span className="campus-road road-one"></span>
           <span className="campus-road road-two"></span>
           <span className="campus-road road-three"></span>
-          <span className="campus-building building-one"></span>
-          <span className="campus-building building-two"></span>
-          <span className="campus-building building-three"></span>
           <span className="route-line tracking-route"></span>
-          <span className="map-pin vendor"><span>Restaurant</span></span>
+          <span className="map-pin vendor"><span>Pickup</span></span>
           <span className="map-pin rider"><span>Rider</span></span>
           <span className="map-pin dropoff"><span>You</span></span>
           <div className="map-callout tracking-callout">
             <span>Estimated arrival</span>
-            <strong>12 mins</strong>
-            <small>Distance: 1.2 km</small>
+            <strong>{order.eta || "0"} mins</strong>
+            <small>Distance: {route ? route.totalDistanceKm.toFixed(2) : "0.00"} km</small>
           </div>
         </div>
       </section>
@@ -73,24 +64,14 @@ export default function OrderTracking({ onNavigate = () => {} }) {
           <article className="card rider-card compact-tracking-card">
             <div className="card-header">
               <h3>Assigned Rider</h3>
-              <span className="status-chip green">On route</span>
+              <span className="status-chip green">{route ? "On route" : "Waiting"}</span>
             </div>
             <div className="rider-profile">
-              <div className="rider-avatar">{rider.initials}</div>
+              <div className="rider-avatar">{(order.rider || "UA").slice(0, 2)}</div>
               <div>
-                <strong>{rider.name}</strong>
-                <span>{rider.role}</span>
+                <strong>{order.rider || "Unassigned"}</strong>
+                <span>UM-Dabau Logistics</span>
               </div>
-            </div>
-            <div className="rider-actions">
-              <button className="secondary-button" type="button">
-                <span className="material-symbols-outlined">call</span>
-                Call
-              </button>
-              <button className="secondary-button" type="button">
-                <span className="material-symbols-outlined">chat</span>
-                Message
-              </button>
             </div>
           </article>
 
@@ -112,31 +93,29 @@ export default function OrderTracking({ onNavigate = () => {} }) {
 
         <article className="card tracking-summary-card">
           <div className="card-header">
-            <div>
-              <p className="eyebrow">Delivery to</p>
-              <h3>Order Summary</h3>
-            </div>
-            <span className="status-chip green">Mock order</span>
+            <div><p className="eyebrow">Delivery to</p><h3>Order Summary</h3></div>
+            <span className="status-chip green">{order.status || "Live"}</span>
           </div>
           <p className="tracking-destination">
             <span className="material-symbols-outlined">location_on</span>
-            {activeOrder.destination}
+            {order.destination || "No active destination"}
           </p>
 
           <div className="tracking-summary-items">
-            {orderItems.map((item) => (
-              <div className="tracking-summary-row" key={item.id}>
-                <span>{item.qty}x</span>
+            {tracking.items.map((item) => (
+              <div className="tracking-summary-row" key={`${item.itemId}-${item.name}`}>
+                <span>1x</span>
                 <strong>{item.name}</strong>
-                <dd>RM {item.total.toFixed(2)}</dd>
+                <dd>RM {Number(item.price).toFixed(2)}</dd>
               </div>
             ))}
+            {tracking.items.length === 0 && <p className="muted">No dispatched order items yet.</p>}
           </div>
 
           <dl className="tracking-costs">
             <div><dt>Subtotal</dt><dd>RM {subtotal.toFixed(2)}</dd></div>
-            <div><dt>Delivery fee</dt><dd>RM {deliveryFee.toFixed(2)}</dd></div>
-            <div><dt>Tax / platform fee</dt><dd>RM {platformFee.toFixed(2)}</dd></div>
+            <div><dt>Delivery fee</dt><dd>RM {Number(tracking.deliveryFee || 0).toFixed(2)}</dd></div>
+            <div><dt>Tax / platform fee</dt><dd>RM {Number(tracking.platformFee || 0).toFixed(2)}</dd></div>
             <div className="total"><dt>Total</dt><dd>RM {total.toFixed(2)}</dd></div>
           </dl>
         </article>

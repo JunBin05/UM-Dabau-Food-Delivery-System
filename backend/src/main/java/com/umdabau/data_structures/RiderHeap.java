@@ -87,6 +87,14 @@ public class RiderHeap {
         return bestRider;
     }
 
+    public User pop() {
+        return extractBestRider();
+    }
+
+    public int getSize() {
+        return size;
+    }
+
     /**
      * Moves a node UP the tree if it is smaller than its parent.
      */

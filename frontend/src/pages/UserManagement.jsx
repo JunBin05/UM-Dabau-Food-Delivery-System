@@ -1,34 +1,43 @@
-import React, { useMemo, useState } from "react";
-import { users } from "../data/mockData.js";
+import React, { useEffect, useMemo, useState } from "react";
+import { deleteJson, fetchJson, postJson, putJson } from "../api/liveApi.js";
 
 const emptyUserForm = {
-  id: "",
-  name: "",
+  userId: "",
+  fullName: "",
   email: "",
   role: "Customer",
   status: "Active",
-  availability: "Available",
-  currentNode: "FSKTM_BLOCK_A"
+  available: false,
+  currentNodeId: "NODE_FSKTM"
 };
 
 const roleOptions = ["Customer", "Rider", "Admin"];
-const statusOptions = ["Active", "Offline", "Suspended"];
-const availabilityOptions = ["Available", "Unavailable"];
-const nodeOptions = ["FSKTM_BLOCK_A", "KK12", "LIBRARY", "CENTRAL_EATERY"];
+const statusOptions = ["Active", "Offline", "Suspended", "ASSIGNED"];
+const nodeOptions = ["NODE_FSKTM", "NODE_KK12_BLOCK_A", "NODE_LIBRARY", "NODE_UM_CENTRAL", "NODE_ENGINEERING"];
 
 export default function UserManagement() {
-  const [userRows, setUserRows] = useState(users);
+  const [userRows, setUserRows] = useState([]);
   const [form, setForm] = useState(emptyUserForm);
   const [editingId, setEditingId] = useState("");
 
   const formTitle = editingId ? `Edit User ${editingId}` : "Add User";
   const riderCount = useMemo(() => userRows.filter((user) => user.role === "Rider").length, [userRows]);
 
+  function loadUsers() {
+    fetchJson("/live/users")
+      .then(setUserRows)
+      .catch((error) => console.error("Failed to load users:", error));
+  }
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
   function updateField(field, value) {
     setForm((current) => ({
       ...current,
       [field]: value,
-      ...(field === "role" && value !== "Rider" ? { availability: "", currentNode: "" } : {})
+      ...(field === "role" && value !== "Rider" ? { available: false, currentNodeId: "" } : {})
     }));
   }
 
@@ -41,45 +50,43 @@ export default function UserManagement() {
     event.preventDefault();
     const cleanedUser = {
       ...form,
-      id: form.id.trim(),
-      name: form.name.trim(),
+      userId: form.userId.trim(),
+      fullName: form.fullName.trim(),
       email: form.email.trim(),
-      availability: form.role === "Rider" ? form.availability : "",
-      currentNode: form.role === "Rider" ? form.currentNode : "",
-      lastSeen: editingId ? "Updated locally" : "Added locally"
+      available: form.role === "Rider" ? form.available : false,
+      currentNodeId: form.role === "Rider" ? form.currentNodeId : ""
     };
 
-    if (!cleanedUser.id || !cleanedUser.name || !cleanedUser.email) {
-      return;
-    }
+    const request = editingId
+      ? putJson(`/live/users/${editingId}`, cleanedUser)
+      : postJson("/live/users", cleanedUser);
 
-    setUserRows((current) => {
-      if (editingId) {
-        return current.map((user) => (user.id === editingId ? cleanedUser : user));
-      }
-      return [cleanedUser, ...current.filter((user) => user.id !== cleanedUser.id)];
-    });
-    resetForm();
+    request.then(() => {
+      loadUsers();
+      resetForm();
+    }).catch((error) => console.error("Failed to save user:", error));
   }
 
   function handleEdit(user) {
-    setEditingId(user.id);
+    setEditingId(user.userId);
     setForm({
-      id: user.id,
-      name: user.name,
+      userId: user.userId,
+      fullName: user.fullName,
       email: user.email,
       role: user.role,
       status: user.status,
-      availability: user.availability || "Available",
-      currentNode: user.currentNode || "FSKTM_BLOCK_A"
+      available: user.available,
+      currentNodeId: user.currentNodeId || "NODE_FSKTM"
     });
   }
 
   function handleDelete(userId) {
-    setUserRows((current) => current.filter((user) => user.id !== userId));
-    if (editingId === userId) {
-      resetForm();
-    }
+    deleteJson(`/live/users/${userId}`)
+      .then(() => {
+        loadUsers();
+        if (editingId === userId) resetForm();
+      })
+      .catch((error) => console.error("Failed to delete user:", error));
   }
 
   return (
@@ -88,64 +95,31 @@ export default function UserManagement() {
         <div>
           <p className="eyebrow">Admin controls</p>
           <h2>User Management</h2>
-          <span>Temporary frontend mock data for demonstrating add, edit, delete, and display operations.</span>
+          <span>Users are loaded from the backend UserList.</span>
         </div>
-        <span className="status-chip green">{userRows.length} mock users</span>
+        <span className="status-chip green">{userRows.length} users</span>
       </section>
 
       <section className="management-layout user-management-layout">
         <form className="card management-form" onSubmit={handleSubmit}>
           <div className="card-header">
             <div>
-              <p className="eyebrow">Local state only</p>
+              <p className="eyebrow">Backend write</p>
               <h3>{formTitle}</h3>
             </div>
-            {editingId && (
-              <button className="text-button" type="button" onClick={resetForm}>
-                Cancel edit
-              </button>
-            )}
+            {editingId && <button className="text-button" type="button" onClick={resetForm}>Cancel edit</button>}
           </div>
 
           <div className="form-grid">
-            <label>
-              <span>User ID</span>
-              <input value={form.id} onChange={(event) => updateField("id", event.target.value)} placeholder="USR-005" required />
-            </label>
-            <label>
-              <span>Full name</span>
-              <input value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="Nur Iman" required />
-            </label>
-            <label className="wide">
-              <span>Email</span>
-              <input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} placeholder="name@umdabau.local" required />
-            </label>
-            <label>
-              <span>Role</span>
-              <select value={form.role} onChange={(event) => updateField("role", event.target.value)}>
-                {roleOptions.map((role) => <option key={role}>{role}</option>)}
-              </select>
-            </label>
-            <label>
-              <span>Status</span>
-              <select value={form.status} onChange={(event) => updateField("status", event.target.value)}>
-                {statusOptions.map((status) => <option key={status}>{status}</option>)}
-              </select>
-            </label>
+            <label><span>User ID</span><input value={form.userId} onChange={(event) => updateField("userId", event.target.value)} required /></label>
+            <label><span>Full name</span><input value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} required /></label>
+            <label className="wide"><span>Email</span><input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} required /></label>
+            <label><span>Role</span><select value={form.role} onChange={(event) => updateField("role", event.target.value)}>{roleOptions.map((role) => <option key={role}>{role}</option>)}</select></label>
+            <label><span>Status</span><select value={form.status} onChange={(event) => updateField("status", event.target.value)}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</select></label>
             {form.role === "Rider" && (
               <>
-                <label>
-                  <span>Availability</span>
-                  <select value={form.availability} onChange={(event) => updateField("availability", event.target.value)}>
-                    {availabilityOptions.map((availability) => <option key={availability}>{availability}</option>)}
-                  </select>
-                </label>
-                <label>
-                  <span>Current Node / Location</span>
-                  <select value={form.currentNode} onChange={(event) => updateField("currentNode", event.target.value)}>
-                    {nodeOptions.map((node) => <option key={node}>{node}</option>)}
-                  </select>
-                </label>
+                <label><span>Availability</span><select value={String(form.available)} onChange={(event) => updateField("available", event.target.value === "true")}><option value="true">Available</option><option value="false">Unavailable</option></select></label>
+                <label><span>Current Node</span><select value={form.currentNodeId} onChange={(event) => updateField("currentNodeId", event.target.value)}>{nodeOptions.map((node) => <option key={node}>{node}</option>)}</select></label>
               </>
             )}
           </div>
@@ -158,11 +132,8 @@ export default function UserManagement() {
 
         <section className="card management-panel">
           <div className="card-header management-panel-header">
-            <div>
-              <p className="eyebrow">Display operation</p>
-              <h3>User List</h3>
-            </div>
-            <span className="status-chip blue">Frontend mock table</span>
+            <div><p className="eyebrow">Backend read</p><h3>User List</h3></div>
+            <span className="status-chip blue">UserList</span>
           </div>
 
           <div className="summary-metrics compact">
@@ -173,29 +144,21 @@ export default function UserManagement() {
 
           <div className="table-wrap polished-table-wrap">
             <table>
-              <thead>
-                <tr><th>User ID</th><th>Full name</th><th>Email</th><th>Role</th><th>Status</th><th>Rider availability</th><th>Current node</th><th>Actions</th></tr>
-              </thead>
+              <thead><tr><th>User ID</th><th>Full name</th><th>Email</th><th>Role</th><th>Status</th><th>Available</th><th>Current node</th><th>Actions</th></tr></thead>
               <tbody>
                 {userRows.map((user) => (
-                  <tr key={user.id}>
-                    <td>{user.id}</td>
-                    <td>{user.name}</td>
+                  <tr key={user.userId}>
+                    <td>{user.userId}</td>
+                    <td>{user.fullName}</td>
                     <td>{user.email}</td>
                     <td><span className="role-badge">{user.role}</span></td>
                     <td><span className={`status-chip ${user.status === "Suspended" ? "amber" : user.status === "Offline" ? "blue" : "green"}`}>{user.status}</span></td>
-                    <td>{user.role === "Rider" ? user.availability : "-"}</td>
-                    <td>{user.role === "Rider" ? user.currentNode : "-"}</td>
+                    <td>{user.role === "Rider" ? (user.available ? "Available" : "Unavailable") : "-"}</td>
+                    <td>{user.role === "Rider" ? user.currentNodeId : "-"}</td>
                     <td>
                       <div className="table-actions">
-                        <button className="action-button edit" type="button" onClick={() => handleEdit(user)}>
-                          <span className="material-symbols-outlined">edit</span>
-                          Edit
-                        </button>
-                        <button className="action-button delete" type="button" onClick={() => handleDelete(user.id)}>
-                          <span className="material-symbols-outlined">delete</span>
-                          Delete
-                        </button>
+                        <button className="action-button edit" type="button" onClick={() => handleEdit(user)}><span className="material-symbols-outlined">edit</span>Edit</button>
+                        <button className="action-button delete" type="button" onClick={() => handleDelete(user.userId)}><span className="material-symbols-outlined">delete</span>Delete</button>
                       </div>
                     </td>
                   </tr>

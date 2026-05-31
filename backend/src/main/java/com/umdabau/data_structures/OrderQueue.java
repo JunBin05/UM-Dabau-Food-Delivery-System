@@ -1,5 +1,8 @@
 package com.umdabau.data_structures;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.umdabau.models.Order;
 
 /**
@@ -99,5 +102,17 @@ public class OrderQueue {
      */
     public int getSize() {
         return this.size;
+    }
+
+    public List<Order> toList() {
+        List<Order> orders = new ArrayList<>();
+        QueueNode current = front;
+
+        while (current != null) {
+            orders.add(current.order);
+            current = current.next;
+        }
+
+        return orders;
     }
 }

@@ -6,10 +6,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.umdabau.data_structures.CartStack;
@@ -99,6 +99,11 @@ public class OrderController {
 
     @PostMapping("/checkout")
     public ResponseEntity<String> checkoutOrder(@RequestBody Order newOrder) {
+        // 1. ADD THIS CHECK: Don't allow checking out an empty cart!
+        if (activeCart.isEmpty()) {
+            return ResponseEntity.badRequest().body("Cannot checkout: Cart is empty.");
+        }
+
         List<MenuItem> checkedOutItems = activeCart.toList();
         newOrder.cart = checkedOutItems;
         newOrder.status = "PENDING_DISPATCH";
@@ -118,7 +123,9 @@ public class OrderController {
         // Put the order into the globally shared queue!
         deliveryService.getOrderQueue().enqueue(newOrder);
         activeCart.clear();
-        lastCartAction = null;
+        
+        // (Assuming you added lastCartAction for the undo feature)
+        lastCartAction = null; 
         
         return ResponseEntity.ok("Order queued! Pending orders: " + deliveryService.getOrderQueue().getSize());
     }

@@ -1,14 +1,28 @@
-import React from "react";
-import { adminStats, alerts, liveOrders } from "../data/mockData.js";
+import React, { useEffect, useState } from "react";
+import { fetchJson } from "../api/liveApi.js";
+
+const emptyOverview = {
+  stats: [],
+  alerts: [],
+  latestOrders: []
+};
 
 export default function AdminDashboard({ onNavigate }) {
+  const [overview, setOverview] = useState(emptyOverview);
+
+  useEffect(() => {
+    fetchJson("/live/admin/overview")
+      .then(setOverview)
+      .catch((error) => console.error("Failed to load admin overview:", error));
+  }, []);
+
   return (
     <div className="page-stack">
       <section className="page-heading">
         <div>
           <p className="eyebrow">Admin overview</p>
           <h2>Operations Dashboard</h2>
-          <span>Monitor UM-Dabau delivery activity using placeholder data.</span>
+          <span>Live data from OrderQueue, RiderHeap, restaurants, and users.</span>
         </div>
         <button className="secondary-button" type="button" onClick={() => onNavigate("order-monitoring")}>
           <span className="material-symbols-outlined">monitor_heart</span>
@@ -17,12 +31,12 @@ export default function AdminDashboard({ onNavigate }) {
       </section>
 
       <section className="stat-grid four admin-stat-grid">
-        {adminStats.map((stat) => (
+        {overview.stats.map((stat) => (
           <article className="stat-card" key={stat.label}>
             <span className="stat-icon material-symbols-outlined">{stat.icon}</span>
             <p>{stat.label}</p>
             <strong>{stat.value}</strong>
-            <small>{stat.change}</small>
+            <small>{stat.change || stat.detail}</small>
           </article>
         ))}
       </section>
@@ -31,10 +45,10 @@ export default function AdminDashboard({ onNavigate }) {
         <article className="card">
           <div className="card-header">
             <h3>Recent system alerts</h3>
-            <span className="status-chip amber">{alerts.length} alerts</span>
+            <span className="status-chip amber">{overview.alerts.length} alerts</span>
           </div>
           <div className="list-stack">
-            {alerts.map((alert) => (
+            {overview.alerts.map((alert) => (
               <div className={`alert-row ${alert.level}`} key={alert.title}>
                 <span className="material-symbols-outlined">error</span>
                 <div>
@@ -76,16 +90,21 @@ export default function AdminDashboard({ onNavigate }) {
               <tr><th>Order</th><th>Customer</th><th>Vendor</th><th>Rider</th><th>Status</th><th>Total</th></tr>
             </thead>
             <tbody>
-              {liveOrders.slice(0, 3).map((order) => (
+              {overview.latestOrders.slice(0, 3).map((order) => (
                 <tr key={order.id}>
                   <td>{order.id}</td>
                   <td>{order.customer}</td>
                   <td>{order.vendor}</td>
                   <td>{order.rider}</td>
                   <td><span className="status-chip blue">{order.status}</span></td>
-                  <td>{order.total}</td>
+                  <td>RM {Number(order.total || 0).toFixed(2)}</td>
                 </tr>
               ))}
+              {overview.latestOrders.length === 0 && (
+                <tr>
+                  <td colSpan="6">No queued orders yet.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -1,5 +1,8 @@
 package com.umdabau.data_structures;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.umdabau.models.Restaurant;
 
 public class RestaurantList {
@@ -139,6 +142,18 @@ public class RestaurantList {
     // getSize: O(1)
     public int getSize() {
         return size;
+    }
+
+    public List<Restaurant> toList() {
+        List<Restaurant> restaurants = new ArrayList<>();
+        RestaurantNode current = head;
+
+        while (current != null) {
+            restaurants.add(current.data);
+            current = current.next;
+        }
+
+        return restaurants;
     }
 
     // Clear the list by removing references to the first and last node: O(1)

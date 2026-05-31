@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from "react";
-
-const deliveryFee = 2.5;
-const platformFee = 0.8;
+import { fetchJson } from "../api/liveApi.js";
 
 export default function CartPreview({ items = [], isLoading = false, onRefreshCart = () => {}, onUndoLastCartItem = () => {}, onAddItem = () => {}, onRemoveItem = () => {}, onRemoveAllItem = () => {} }) {
   const [checkoutMessage, setCheckoutMessage] = useState("");
+  const [delivery, setDelivery] = useState({ deliveryAddress: "Loading delivery point...", deliveryNodeId: "NODE_KK12_BLOCK_A", deliveryFee: 0, platformFee: 0 });
   const subtotal = useMemo(() => items.reduce((total, item) => total + item.price * item.qty, 0), [items]);
 
   useEffect(() => {
     onRefreshCart();
+    fetchJson("/live/customer/home")
+      .then((home) => setDelivery({ deliveryAddress: home.deliveryAddress, deliveryNodeId: home.deliveryNodeId, deliveryFee: home.deliveryFee, platformFee: home.platformFee }))
+      .catch((error) => console.error("Failed to load delivery point:", error));
   }, [onRefreshCart]);
 
   function checkout() {
@@ -19,7 +21,7 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
       headers: {
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({})
+      body: JSON.stringify({ deliveryNodeId: delivery.deliveryNodeId })
     })
       .then((response) => {
         if (!response.ok) {
@@ -51,8 +53,8 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
         <span className="material-symbols-outlined">location_on</span>
         <div>
           <p className="eyebrow">Deliver to</p>
-          <strong>Engineering Block C, Room 304</strong>
-          <small>Contactless drop-off at lobby counter.</small>
+          <strong>{delivery.deliveryAddress}</strong>
+          <small>{delivery.deliveryNodeId}</small>
         </div>
       </section>
 
@@ -106,7 +108,7 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
             <span className="material-symbols-outlined">sell</span>
             <div>
               <strong>Voucher</strong>
-              <small>Campus lunch promo placeholder</small>
+              <small>Live order total preview</small>
             </div>
           </div>
           <div className="checkout-option-card">
@@ -118,16 +120,16 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
           </div>
           <dl>
             <div><dt>Subtotal</dt><dd>RM {subtotal.toFixed(2)}</dd></div>
-            <div><dt>Delivery fee</dt><dd>RM {deliveryFee.toFixed(2)}</dd></div>
-            <div><dt>Platform fee</dt><dd>RM {platformFee.toFixed(2)}</dd></div>
-            <div className="total"><dt>Total</dt><dd>RM {(subtotal + deliveryFee + platformFee).toFixed(2)}</dd></div>
+            <div><dt>Delivery fee</dt><dd>RM {Number(delivery.deliveryFee || 0).toFixed(2)}</dd></div>
+            <div><dt>Platform fee</dt><dd>RM {Number(delivery.platformFee || 0).toFixed(2)}</dd></div>
+            <div className="total"><dt>Total</dt><dd>RM {(subtotal + Number(delivery.deliveryFee || 0) + Number(delivery.platformFee || 0)).toFixed(2)}</dd></div>
           </dl>
           <div className="cart-actions">
             <button className="primary-button full checkout-button" type="button" onClick={checkout} disabled={isLoading || items.length === 0}>Proceed to Checkout</button>
             {checkoutMessage && <p className="muted">{checkoutMessage}</p>}
             <p className="secure-note cart-secure-note">
               <span className="material-symbols-outlined">lock</span>
-              Secure Payment placeholder only. Checkout queues the order for dispatch.
+              Checkout queues the order for dispatch.
             </p>
           </div>
         </article>

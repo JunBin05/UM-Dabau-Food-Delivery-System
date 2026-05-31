@@ -1,25 +1,35 @@
-import React, { useMemo, useState } from "react";
-import { restaurants } from "../data/mockData.js";
+import React, { useEffect, useMemo, useState } from "react";
+import { deleteJson, fetchJson, postJson, putJson } from "../api/liveApi.js";
 
 const emptyRestaurantForm = {
-  id: "",
-  name: "",
+  restaurantId: "",
+  restaurantName: "",
   category: "Malay Food",
   status: "Open",
   campusLocation: "",
-  nodeId: "CENTRAL_EATERY"
+  nodeId: "NODE_UM_CENTRAL"
 };
 
-const categoryOptions = ["Malay Food", "Western", "Drinks", "Cafe", "Fast Food"];
+const categoryOptions = ["Malay Food", "Malay Snacks", "Western", "Drinks", "Vegetarian", "Cafe"];
 const statusOptions = ["Open", "Closed"];
-const nodeOptions = ["CENTRAL_EATERY", "FSKTM_BLOCK_A", "KK12", "LIBRARY", "ENGINEERING_QUAD"];
+const nodeOptions = ["NODE_UM_CENTRAL", "NODE_FSKTM", "NODE_KK12_BLOCK_A", "NODE_LIBRARY", "NODE_ENGINEERING", "NODE_ZUS", "NODE_FOODY_AVENUE_HESHE12"];
 
 export default function RestaurantManagement() {
-  const [restaurantRows, setRestaurantRows] = useState(restaurants);
+  const [restaurantRows, setRestaurantRows] = useState([]);
   const [form, setForm] = useState(emptyRestaurantForm);
   const [editingId, setEditingId] = useState("");
 
   const openCount = useMemo(() => restaurantRows.filter((restaurant) => restaurant.status === "Open").length, [restaurantRows]);
+
+  function loadRestaurants() {
+    fetchJson("/live/restaurants")
+      .then(setRestaurantRows)
+      .catch((error) => console.error("Failed to load restaurants:", error));
+  }
+
+  useEffect(() => {
+    loadRestaurants();
+  }, []);
 
   function updateField(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -32,49 +42,42 @@ export default function RestaurantManagement() {
 
   function handleSubmit(event) {
     event.preventDefault();
-    const existingRestaurant = restaurantRows.find((restaurant) => restaurant.id === editingId);
     const cleanedRestaurant = {
       ...form,
-      id: form.id.trim(),
-      name: form.name.trim(),
-      category: form.category,
-      cuisine: form.category,
-      campusLocation: form.campusLocation.trim(),
-      nodeId: form.nodeId,
-      orders: editingId ? existingRestaurant?.orders ?? 0 : 0,
-      rating: editingId ? existingRestaurant?.rating ?? 4.5 : 4.5
+      restaurantId: form.restaurantId.trim(),
+      restaurantName: form.restaurantName.trim(),
+      campusLocation: form.campusLocation.trim()
     };
 
-    if (!cleanedRestaurant.id || !cleanedRestaurant.name || !cleanedRestaurant.campusLocation) {
-      return;
-    }
+    const request = editingId
+      ? putJson(`/live/restaurants/${editingId}`, cleanedRestaurant)
+      : postJson("/live/restaurants", cleanedRestaurant);
 
-    setRestaurantRows((current) => {
-      if (editingId) {
-        return current.map((restaurant) => (restaurant.id === editingId ? cleanedRestaurant : restaurant));
-      }
-      return [cleanedRestaurant, ...current.filter((restaurant) => restaurant.id !== cleanedRestaurant.id)];
-    });
-    resetForm();
+    request.then(() => {
+      loadRestaurants();
+      resetForm();
+    }).catch((error) => console.error("Failed to save restaurant:", error));
   }
 
   function handleEdit(restaurant) {
-    setEditingId(restaurant.id);
+    setEditingId(restaurant.restaurantId);
     setForm({
-      id: restaurant.id,
-      name: restaurant.name,
-      category: restaurant.category || restaurant.cuisine,
-      status: restaurant.status === "Closed" ? "Closed" : "Open",
-      campusLocation: restaurant.campusLocation || "",
-      nodeId: restaurant.nodeId || "CENTRAL_EATERY"
+      restaurantId: restaurant.restaurantId,
+      restaurantName: restaurant.restaurantName,
+      category: restaurant.category,
+      status: restaurant.status,
+      campusLocation: restaurant.campusLocation,
+      nodeId: restaurant.nodeId
     });
   }
 
   function handleDelete(restaurantId) {
-    setRestaurantRows((current) => current.filter((restaurant) => restaurant.id !== restaurantId));
-    if (editingId === restaurantId) {
-      resetForm();
-    }
+    deleteJson(`/live/restaurants/${restaurantId}`)
+      .then(() => {
+        loadRestaurants();
+        if (editingId === restaurantId) resetForm();
+      })
+      .catch((error) => console.error("Failed to delete restaurant:", error));
   }
 
   return (
@@ -83,56 +86,25 @@ export default function RestaurantManagement() {
         <div>
           <p className="eyebrow">Admin controls</p>
           <h2>Restaurant Management</h2>
-          <span>Temporary frontend mock data for demonstrating restaurant add, edit, delete, and display operations.</span>
+          <span>Restaurants are loaded from the backend RestaurantList.</span>
         </div>
-        <span className="status-chip green">{restaurantRows.length} mock restaurants</span>
+        <span className="status-chip green">{restaurantRows.length} restaurants</span>
       </section>
 
       <section className="management-layout restaurant-management-layout">
         <form className="card management-form" onSubmit={handleSubmit}>
           <div className="card-header">
-            <div>
-              <p className="eyebrow">Local state only</p>
-              <h3>{editingId ? `Edit Restaurant ${editingId}` : "Add Restaurant"}</h3>
-            </div>
-            {editingId && (
-              <button className="text-button" type="button" onClick={resetForm}>
-                Cancel edit
-              </button>
-            )}
+            <div><p className="eyebrow">Backend write</p><h3>{editingId ? `Edit Restaurant ${editingId}` : "Add Restaurant"}</h3></div>
+            {editingId && <button className="text-button" type="button" onClick={resetForm}>Cancel edit</button>}
           </div>
 
           <div className="form-grid">
-            <label>
-              <span>Restaurant ID</span>
-              <input value={form.id} onChange={(event) => updateField("id", event.target.value)} placeholder="REST-005" required />
-            </label>
-            <label>
-              <span>Restaurant name</span>
-              <input value={form.name} onChange={(event) => updateField("name", event.target.value)} placeholder="KK12 Quick Bites" required />
-            </label>
-            <label>
-              <span>Category</span>
-              <select value={form.category} onChange={(event) => updateField("category", event.target.value)}>
-                {categoryOptions.map((category) => <option key={category}>{category}</option>)}
-              </select>
-            </label>
-            <label>
-              <span>Open/Closed Status</span>
-              <select value={form.status} onChange={(event) => updateField("status", event.target.value)}>
-                {statusOptions.map((status) => <option key={status}>{status}</option>)}
-              </select>
-            </label>
-            <label>
-              <span>Campus location</span>
-              <input value={form.campusLocation} onChange={(event) => updateField("campusLocation", event.target.value)} placeholder="Kolej Kediaman 12" required />
-            </label>
-            <label>
-              <span>Node ID</span>
-              <select value={form.nodeId} onChange={(event) => updateField("nodeId", event.target.value)}>
-                {nodeOptions.map((node) => <option key={node}>{node}</option>)}
-              </select>
-            </label>
+            <label><span>Restaurant ID</span><input value={form.restaurantId} onChange={(event) => updateField("restaurantId", event.target.value)} required /></label>
+            <label><span>Restaurant name</span><input value={form.restaurantName} onChange={(event) => updateField("restaurantName", event.target.value)} required /></label>
+            <label><span>Category</span><select value={form.category} onChange={(event) => updateField("category", event.target.value)}>{categoryOptions.map((category) => <option key={category}>{category}</option>)}</select></label>
+            <label><span>Open/Closed Status</span><select value={form.status} onChange={(event) => updateField("status", event.target.value)}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</select></label>
+            <label><span>Campus location</span><input value={form.campusLocation} onChange={(event) => updateField("campusLocation", event.target.value)} required /></label>
+            <label><span>Node ID</span><select value={form.nodeId} onChange={(event) => updateField("nodeId", event.target.value)}>{nodeOptions.map((node) => <option key={node}>{node}</option>)}</select></label>
           </div>
 
           <button className="primary-button full" type="submit">
@@ -143,11 +115,8 @@ export default function RestaurantManagement() {
 
         <section className="card management-panel">
           <div className="card-header management-panel-header">
-            <div>
-              <p className="eyebrow">Display operation</p>
-              <h3>Restaurant List</h3>
-            </div>
-            <span className="status-chip blue">Frontend mock cards</span>
+            <div><p className="eyebrow">Backend read</p><h3>Restaurant List</h3></div>
+            <span className="status-chip blue">RestaurantList</span>
           </div>
 
           <div className="summary-metrics compact">
@@ -158,34 +127,22 @@ export default function RestaurantManagement() {
 
           <div className="restaurant-grid management-card-grid">
             {restaurantRows.map((restaurant) => (
-              <article className="restaurant-admin-card polished-restaurant-card" key={restaurant.id}>
+              <article className="restaurant-admin-card polished-restaurant-card" key={restaurant.restaurantId}>
                 <div className="restaurant-card-top">
-                  <div className="vendor-avatar">
-                    <span className="material-symbols-outlined">storefront</span>
-                  </div>
+                  <div className="vendor-avatar"><span className="material-symbols-outlined">storefront</span></div>
                   <span className={`status-chip ${restaurant.status === "Closed" ? "amber" : "green"}`}>{restaurant.status}</span>
                 </div>
                 <div>
-                  <h3>{restaurant.name}</h3>
-                  <p>{restaurant.category || restaurant.cuisine} - {restaurant.campusLocation}</p>
+                  <h3>{restaurant.restaurantName}</h3>
+                  <p>{restaurant.category} - {restaurant.campusLocation}</p>
                 </div>
                 <dl className="detail-list">
-                  <div><dt>ID</dt><dd>{restaurant.id}</dd></div>
+                  <div><dt>ID</dt><dd>{restaurant.restaurantId}</dd></div>
                   <div><dt>Node</dt><dd>{restaurant.nodeId}</dd></div>
                 </dl>
-                <div className="vendor-meta">
-                  <strong>{restaurant.orders} orders</strong>
-                  <small>{restaurant.rating} rating</small>
-                </div>
                 <div className="table-actions">
-                  <button className="action-button edit" type="button" onClick={() => handleEdit(restaurant)}>
-                    <span className="material-symbols-outlined">edit</span>
-                    Edit
-                  </button>
-                  <button className="action-button delete" type="button" onClick={() => handleDelete(restaurant.id)}>
-                    <span className="material-symbols-outlined">delete</span>
-                    Delete
-                  </button>
+                  <button className="action-button edit" type="button" onClick={() => handleEdit(restaurant)}><span className="material-symbols-outlined">edit</span>Edit</button>
+                  <button className="action-button delete" type="button" onClick={() => handleDelete(restaurant.restaurantId)}><span className="material-symbols-outlined">delete</span>Delete</button>
                 </div>
               </article>
             ))}

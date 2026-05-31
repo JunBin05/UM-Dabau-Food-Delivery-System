@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.umdabau.models.Order;
 import com.umdabau.models.RouteSummary;
 import com.umdabau.models.User;
+import com.umdabau.models.GraphNode;
 
 @RestController
 @RequestMapping("/api/dispatch")
@@ -24,6 +25,7 @@ import com.umdabau.models.User;
 public class DispatchController {
 
     private static final String DEFAULT_RIDER_NODE_ID = "NODE_FSKTM";
+    private static final String DEFAULT_RESTAURANT_NODE_ID = "NODE_UM_CENTRAL";
     private static final String DEFAULT_DELIVERY_NODE_ID = "NODE_KK12_BLOCK_A";
 
     @Autowired
@@ -43,28 +45,39 @@ public class DispatchController {
 
         // Pull from the exact same queue that OrderController just added to!
         Order nextOrder = deliveryService.getOrderQueue().dequeue();
-        User bestRider = deliveryService.getRiderHeap().extractBestRider();
+        User bestRider = deliveryService.getRiderHeap().pop();
 
         nextOrder.status = "DISPATCHED";
         nextOrder.assignedRiderId = bestRider.getUserId();
         bestRider.setAvailable(false);
         bestRider.setStatus("ASSIGNED");
 
-        String startNode = getStartNode(bestRider);
-        String endNode = getEndNode(nextOrder);
+        String riderNode = getStartNode(bestRider);
+        String restaurantNode = getRestaurantNode(nextOrder);
+        String customerNode = getCustomerNode(nextOrder);
 
         RouteSummary routeSummary;
 
         try {
-            routeSummary = deliveryService.getCampusMap().runDijkstra(
-                startNode,
-                endNode,
+            RouteSummary riderToRestaurant = deliveryService.getCampusMap().runDijkstra(
+                riderNode,
+                restaurantNode,
                 nextOrder.orderId,
                 bestRider.getUserId()
             );
+            RouteSummary restaurantToCustomer = deliveryService.getCampusMap().runDijkstra(
+                restaurantNode,
+                customerNode,
+                nextOrder.orderId,
+                bestRider.getUserId()
+            );
+            routeSummary = combineRouteSummaries(riderToRestaurant, restaurantToCustomer);
         } catch (IllegalArgumentException error) {
             return ResponseEntity.badRequest().body(null);
         }
+
+        deliveryService.setLatestDispatchedOrder(nextOrder);
+        deliveryService.setLatestRouteSummary(routeSummary);
 
         return ResponseEntity.ok(routeSummary);
     }
@@ -77,7 +90,15 @@ public class DispatchController {
         return DEFAULT_RIDER_NODE_ID;
     }
 
-    private String getEndNode(Order order) {
+    private String getRestaurantNode(Order order) {
+        if (order.restaurantId != null && !order.restaurantId.isBlank()) {
+            return normalizeNodeId(order.restaurantId, DEFAULT_RESTAURANT_NODE_ID);
+        }
+
+        return DEFAULT_RESTAURANT_NODE_ID;
+    }
+
+    private String getCustomerNode(Order order) {
         if (order.deliveryNodeId != null && !order.deliveryNodeId.isBlank()) {
             return normalizeNodeId(order.deliveryNodeId, DEFAULT_DELIVERY_NODE_ID);
         }
@@ -106,5 +127,28 @@ public class DispatchController {
         }
 
         return fallbackNodeId;
+    }
+
+    private RouteSummary combineRouteSummaries(RouteSummary firstRoute, RouteSummary secondRoute) {
+        GraphNode[] firstPath = firstRoute.getPath();
+        GraphNode[] secondPath = secondRoute.getPath();
+        int secondPathStart = secondPath.length > 0 ? 1 : 0;
+        GraphNode[] combinedPath = new GraphNode[firstPath.length + secondPath.length - secondPathStart];
+
+        for (int i = 0; i < firstPath.length; i++) {
+            combinedPath[i] = firstPath[i];
+        }
+
+        for (int i = secondPathStart; i < secondPath.length; i++) {
+            combinedPath[firstPath.length + i - secondPathStart] = secondPath[i];
+        }
+
+        return new RouteSummary(
+            firstRoute.getOrderId(),
+            firstRoute.getAssignedRiderId(),
+            combinedPath,
+            firstRoute.getTotalDistanceKm() + secondRoute.getTotalDistanceKm(),
+            firstRoute.getEstimatedTimeMinutes() + secondRoute.getEstimatedTimeMinutes()
+        );
     }
 }
