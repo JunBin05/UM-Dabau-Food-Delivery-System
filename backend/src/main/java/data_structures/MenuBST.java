@@ -1,4 +1,8 @@
 package data_structures;
+
+import java.util.ArrayList;
+import java.util.List;
+
 import models.MenuItem;
 
 public class MenuBST {
@@ -51,14 +55,14 @@ public class MenuBST {
     private AVLNode insertRec(AVLNode node, MenuItem item) {
         if (node == null) return new AVLNode(item);
 
-        // Sorts alphabetically by the exact 'name' field expected by frontend
+        // Sorts alphabetically by the exact 'name' field
         int cmp = item.getName().compareToIgnoreCase(node.item.getName());
         if (cmp < 0) {
             node.left = insertRec(node.left, item);
         } else if (cmp > 0) {
             node.right = insertRec(node.right, item);
         } else {
-            return node; 
+            return node; // Duplicate names are not inserted
         }
 
         node.height = 1 + Math.max(height(node.left), height(node.right));
@@ -90,5 +94,24 @@ public class MenuBST {
             return searchRec(node.left, name);
         }
         return searchRec(node.right, name);
+    }
+
+    // =========================================================================
+    // THE MISSING BRIDGE TO THE FRONTEND
+    // This traverses the AVL tree in alphabetical order and returns a List.
+    // Spring Boot takes this List and automatically turns it into JSON!
+    // =========================================================================
+    public List<MenuItem> inOrderTraversal() {
+        List<MenuItem> sortedList = new ArrayList<>();
+        inOrderRec(root, sortedList);
+        return sortedList;
+    }
+
+    private void inOrderRec(AVLNode node, List<MenuItem> list) {
+        if (node != null) {
+            inOrderRec(node.left, list);  // 1. Go Left (A-Z)
+            list.add(node.item);          // 2. Grab the Item
+            inOrderRec(node.right, list); // 3. Go Right
+        }
     }
 }
