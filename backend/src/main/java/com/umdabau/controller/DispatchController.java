@@ -20,7 +20,7 @@ import com.umdabau.models.User;
 @RestController
 @RequestMapping("/api/dispatch")
 @CrossOrigin(
-    origins = {"http://localhost:5173", "http://127.0.0.1:5173"},
+    origins = {"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"},
     allowedHeaders = "*",
     methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS}
 )
@@ -31,7 +31,7 @@ public class DispatchController {
 
     @PostMapping("/rider/clock-in")
     public ResponseEntity<String> clockInRider(@RequestBody User rider, @RequestParam double distanceToRestaurant) {
-        deliveryService.getRiderHeap().insert(rider, distanceToRestaurant);
+        deliveryService.clockInRider(rider, distanceToRestaurant);
         return ResponseEntity.ok("Rider added to dispatch pool.");
     }
 

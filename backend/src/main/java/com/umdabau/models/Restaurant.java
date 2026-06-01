@@ -1,12 +1,20 @@
 package com.umdabau.models;
 
+import jakarta.persistence.Entity;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "restaurants")
 public class Restaurant {
+    @Id
     private String restaurantId;
     private String restaurantName;
     private String category;
     private String status;
     private String campusLocation;
     private String nodeId;
+    private String imageUrl;
 
     public Restaurant() {
     }
@@ -18,6 +26,11 @@ public class Restaurant {
         this.status = status;
         this.campusLocation = campusLocation;
         this.nodeId = nodeId;
+    }
+
+    public Restaurant(String restaurantId, String restaurantName, String category, String status, String campusLocation, String nodeId, String imageUrl) {
+        this(restaurantId, restaurantName, category, status, campusLocation, nodeId);
+        this.imageUrl = imageUrl;
     }
 
     public String getRestaurantId() {
@@ -68,12 +81,21 @@ public class Restaurant {
         this.nodeId = nodeId;
     }
 
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
+    }
+
     public String toString() {
         return "Restaurant ID: " + restaurantId
                 + ", Restaurant Name: " + restaurantName
                 + ", Category: " + category
                 + ", Status: " + status
                 + ", Campus Location: " + campusLocation
-                + ", Node ID: " + nodeId;
+                + ", Node ID: " + nodeId
+                + ", Image URL: " + imageUrl;
     }
 }

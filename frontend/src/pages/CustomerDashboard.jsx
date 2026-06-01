@@ -7,11 +7,41 @@ const categoryIcons = {
   Western: "lunch_dining",
   Drinks: "local_cafe",
   Snacks: "bakery_dining",
-  Vegetarian: "eco"
+  Vegetarian: "eco",
+  Cafe: "bakery_dining",
+  Mamak: "breakfast_dining",
+  Healthy: "nutrition"
+};
+
+const categoryMeta = {
+  Malay: { icon: "rice_bowl", emoji: "🍛", subtitle: "Rice, lauk, comfort meals", tone: "sunset" },
+  Chinese: { icon: "ramen_dining", emoji: "🍜", subtitle: "Noodles and rice plates", tone: "red" },
+  Western: { icon: "lunch_dining", emoji: "🍗", subtitle: "Chops, fries, burgers", tone: "amber" },
+  Drinks: { icon: "local_cafe", emoji: "🧋", subtitle: "Coffee, tea, coolers", tone: "blue" },
+  Snacks: { icon: "bakery_dining", emoji: "🥐", subtitle: "Quick bites between classes", tone: "orange" },
+  Vegetarian: { icon: "eco", emoji: "🥗", subtitle: "Greens and lighter picks", tone: "green" },
+  Cafe: { icon: "local_cafe", emoji: "☕", subtitle: "Toast, brunch, coffee", tone: "cafe" },
+  Mamak: { icon: "breakfast_dining", emoji: "🫓", subtitle: "Roti and mamak favourites", tone: "mamak" }
 };
 
 function restaurantName(restaurant) {
   return restaurant.restaurantName || restaurant.name;
+}
+
+function getCategoryMeta(category = "") {
+  return categoryMeta[category] || { icon: categoryIcons[category] || "restaurant", emoji: "🍽️", subtitle: "Campus favourites", tone: "green" };
+}
+
+function ImageTile({ src, category, label, className = "" }) {
+  const meta = getCategoryMeta(category);
+
+  return (
+    <div className={`food-image-tile ${meta.tone} ${className}`}>
+      {src && <img src={src} alt={label} onError={(event) => { event.currentTarget.hidden = true; }} />}
+      <span className="food-fallback-emoji" aria-hidden="true">{meta.emoji}</span>
+      <strong>{category || "Campus food"}</strong>
+    </div>
+  );
 }
 
 export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
@@ -27,6 +57,11 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
   const cartTotal = cartItems.reduce((total, item) => total + item.qty * item.price, 0);
   const activeOrder = home.activeOrder || {};
   const heroItems = useMemo(() => home.recommendedItems.slice(0, 3), [home.recommendedItems]);
+  const visibleCategories = useMemo(() => {
+    const preferredOrder = ["Malay", "Chinese", "Western", "Drinks", "Snacks", "Vegetarian", "Cafe", "Mamak"];
+    const availableCategories = home.categories.length > 0 ? home.categories : preferredOrder;
+    return preferredOrder.filter((category) => availableCategories.includes(category));
+  }, [home.categories]);
 
   useEffect(() => {
     fetchJson("/live/customer/home")
@@ -40,7 +75,7 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
         <div className="customer-hero-copy">
           <p className="eyebrow">UM-Dabau Food Delivery</p>
           <h2>Hi {home.customerName}, what would you like to eat?</h2>
-          <p className="customer-hero-subtitle">Order campus meals, drinks, and snacks delivered straight to your block.</p>
+          <p className="customer-hero-subtitle">Campus meals, drinks, and snacks delivered to your block.</p>
           <button className="location-chip" type="button">
             <span className="material-symbols-outlined">location_on</span>
             Deliver to: {home.deliveryAddress}
@@ -62,10 +97,8 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
             <strong>{activeOrder.eta || "0"} min ETA</strong>
           </div>
           {heroItems.map((food) => (
-            <article className="hero-food-card green" key={food.itemId}>
-              <span className="hero-food-plate">
-                <span className="material-symbols-outlined">{categoryIcons[food.category] || "restaurant"}</span>
-              </span>
+            <article className={`hero-food-card ${getCategoryMeta(food.category).tone}`} key={food.itemId}>
+              <ImageTile src={food.imageUrl} category={food.category} label={food.name} className="hero-food-plate" />
               <div>
                 <strong>{food.name}</strong>
                 <small>RM {Number(food.price).toFixed(2)}</small>
@@ -77,7 +110,7 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
 
       <form className="app-search-bar" onSubmit={(event) => event.preventDefault()}>
         <span className="material-symbols-outlined">search</span>
-        <input placeholder="Search from the live Java menu..." />
+        <input placeholder="Search nasi lemak, coffee, chicken rice..." />
       </form>
 
       <section className="customer-section">
@@ -89,13 +122,15 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
           <button className="text-button" type="button" onClick={() => onNavigate("browse-menu")}>All restaurants</button>
         </div>
         <div className="app-category-row" aria-label="Food categories">
-          {home.categories.map((category) => (
-            <button type="button" key={category} onClick={() => onNavigate({ page: "browse-menu", category })}>
-              <span className="material-symbols-outlined">{categoryIcons[category] || "restaurant"}</span>
+          {visibleCategories.map((category) => {
+            const meta = getCategoryMeta(category);
+            return (
+            <button className={meta.tone} type="button" key={category} onClick={() => onNavigate({ page: "browse-menu", category })}>
+              <span className="category-emoji" aria-hidden="true">{meta.emoji}</span>
               <strong>{category}</strong>
-              <small>From live menu</small>
+              <small>{meta.subtitle}</small>
             </button>
-          ))}
+          );})}
         </div>
       </section>
 
@@ -139,17 +174,15 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
         <div className="app-restaurant-grid">
           {home.restaurants.map((restaurant) => (
             <article className="app-vendor-card" key={restaurant.restaurantId}>
-              <div className="vendor-cover">
-                <span className="material-symbols-outlined">storefront</span>
-                <b>{restaurant.category}</b>
-              </div>
+              <ImageTile src={restaurant.imageUrl} category={restaurant.category?.split(" ")[0]} label={restaurantName(restaurant)} className="vendor-cover" />
               <div>
                 <strong>{restaurantName(restaurant)}</strong>
                 <small>{restaurant.category} &middot; {restaurant.campusLocation}</small>
-                <p>Node {restaurant.nodeId}</p>
+                <p>15-25 min &middot; Near campus</p>
               </div>
               <div className="vendor-card-footer">
                 <span className={`status-chip ${restaurant.status === "Open" ? "green" : "amber"}`}>{restaurant.status}</span>
+                <b>★ 4.{restaurant.restaurantId?.slice(-1) || "8"}</b>
               </div>
               <button className="secondary-button full" type="button" onClick={() => onNavigate("browse-menu")}>View menu</button>
             </article>
@@ -161,16 +194,14 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
         <div className="section-heading">
           <div>
             <p className="eyebrow">Recommended dishes</p>
-            <h3>Live Java menu picks</h3>
+            <h3>Campus favourites</h3>
           </div>
           <button className="text-button" type="button" onClick={() => onNavigate("browse-menu")}>Browse more</button>
         </div>
         <div className="recommended-meal-row">
           {home.recommendedItems.slice(0, 4).map((item) => (
             <article className="recommended-meal-card" key={item.itemId}>
-              <div className="meal-thumb green">
-                <span>{item.category}</span>
-              </div>
+              <ImageTile src={item.imageUrl} category={item.category} label={item.name} className="meal-thumb" />
               <strong>{item.name}</strong>
               <small>{item.restaurantId}</small>
               <div>

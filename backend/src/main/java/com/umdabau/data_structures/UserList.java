@@ -1,6 +1,6 @@
 package com.umdabau.data_structures;
 
-import java.util.ArrayList;
+import java.util.AbstractList;
 import java.util.List;
 
 import com.umdabau.models.User;
@@ -145,15 +145,26 @@ public class UserList {
     }
 
     public List<User> toList() {
-        List<User> users = new ArrayList<>();
-        UserNode current = head;
+        return new AbstractList<User>() {
+            @Override
+            public User get(int index) {
+                if (index < 0 || index >= size) {
+                    throw new IndexOutOfBoundsException("Index: " + index + ", Size: " + size);
+                }
 
-        while (current != null) {
-            users.add(current.data);
-            current = current.next;
-        }
+                UserNode current = head;
+                for (int i = 0; i < index; i++) {
+                    current = current.next;
+                }
 
-        return users;
+                return current.data;
+            }
+
+            @Override
+            public int size() {
+                return size;
+            }
+        };
     }
 
     // Clear the list by removing references to the first and last node: O(1)

@@ -102,7 +102,7 @@ export default function RestaurantManagement() {
           </div>
 
           <div className="form-grid">
-            <label><span>Restaurant ID</span><input value={form.restaurantId} onChange={(event) => updateField("restaurantId", event.target.value)} required /></label>
+            <label><span>Restaurant ID</span><input value={form.restaurantId} onChange={(event) => updateField("restaurantId", event.target.value)} readOnly={Boolean(editingId)} required /></label>
             <label><span>Restaurant name</span><input value={form.restaurantName} onChange={(event) => updateField("restaurantName", event.target.value)} required /></label>
             <label><span>Category</span><select value={form.category} onChange={(event) => updateField("category", event.target.value)}>{categoryOptions.map((category) => <option key={category}>{category}</option>)}</select></label>
             <label><span>Open/Closed Status</span><select value={form.status} onChange={(event) => updateField("status", event.target.value)}>{statusOptions.map((status) => <option key={status}>{status}</option>)}</select></label>

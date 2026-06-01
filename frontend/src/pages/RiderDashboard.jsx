@@ -1,8 +1,32 @@
 import React, { useEffect, useState } from "react";
 import { fetchJson, postJson } from "../api/liveApi.js";
+import DeliveryMapView, { DRIVER_STEP_MS } from "../components/DeliveryMapView.jsx";
+
+function routeStorageKey(orderId) {
+  return `um-dabau-tracking-start-${orderId}`;
+}
+
+function getStoredRouteStartTime(orderId) {
+  if (!orderId) {
+    return Date.now();
+  }
+
+  const storedStartTime = Number(window.localStorage.getItem(routeStorageKey(orderId)));
+  if (Number.isFinite(storedStartTime) && storedStartTime > 0) {
+    return storedStartTime;
+  }
+
+  const startTime = Date.now();
+  window.localStorage.setItem(routeStorageKey(orderId), String(startTime));
+  return startTime;
+}
 
 export default function RiderDashboard({ view = "riderMain" }) {
   const [summary, setSummary] = useState({ activeZones: [], earnings: 0, assignedOrder: {}, latestRoute: null, currentNode: "NODE_FSKTM" });
+  const [locations, setLocations] = useState([]);
+  const [routeStartTime, setRouteStartTime] = useState(0);
+  const [simulationNow, setSimulationNow] = useState(Date.now());
+  const [mapError, setMapError] = useState("");
   const [isOnline, setIsOnline] = useState(true);
   const [message, setMessage] = useState("");
 
@@ -13,11 +37,30 @@ export default function RiderDashboard({ view = "riderMain" }) {
   const showZoneManager = view === "riderZones";
   const order = summary.assignedOrder || {};
   const route = summary.latestRoute;
+  const routeFinalIndex = Math.max((route?.path?.length || 1) - 1, 0);
+  const routeDriverIndex = routeStartTime > 0
+    ? Math.min(Math.max(Math.floor((simulationNow - routeStartTime) / DRIVER_STEP_MS), 0), routeFinalIndex)
+    : 0;
 
   function loadSummary() {
+    setMapError("");
     fetchJson("/live/rider/summary")
-      .then(setSummary)
-      .catch((error) => console.error("Failed to load rider summary:", error));
+      .then((data) => {
+        setSummary(data);
+        setRouteStartTime(data.latestRoute ? getStoredRouteStartTime(data.latestRoute.orderId) : 0);
+        setSimulationNow(Date.now());
+      })
+      .catch((error) => {
+        console.error("Failed to load rider summary:", error);
+        setMapError("Could not load live routing data from the backend.");
+      });
+
+    fetchJson("/live/locations")
+      .then(setLocations)
+      .catch((error) => {
+        console.error("Failed to load map locations:", error);
+        setMapError("Could not load campus map locations from the backend.");
+      });
   }
 
   function clockIn() {
@@ -44,6 +87,18 @@ export default function RiderDashboard({ view = "riderMain" }) {
   useEffect(() => {
     loadSummary();
   }, []);
+
+  useEffect(() => {
+    if (!route?.path || route.path.length <= 1 || routeDriverIndex >= routeFinalIndex) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setSimulationNow(Date.now());
+    }, DRIVER_STEP_MS);
+
+    return () => window.clearInterval(timer);
+  }, [route, routeDriverIndex, routeFinalIndex]);
 
   return (
     <div className="page-stack rider-dashboard-page">
@@ -121,15 +176,22 @@ export default function RiderDashboard({ view = "riderMain" }) {
 
           {showRouting && (
             <article className="card live-routing-card">
-              <div className="card-header"><h3>Live Routing</h3><span className="status-chip green">Dijkstra</span></div>
-              <div className="rider-routing-map" aria-label="Live rider route summary">
-                <span className="routing-road road-a"></span>
-                <span className="routing-road road-b"></span>
-                <span className="routing-line"></span>
-                <span className="routing-pin vendor"><span className="material-symbols-outlined">storefront</span></span>
-                <span className="routing-pin rider"><span className="material-symbols-outlined">delivery_dining</span></span>
-                <span className="routing-pin dropoff"><span className="material-symbols-outlined">location_on</span></span>
-                <div className="routing-traffic-badge"><span></span>{route ? `${Math.ceil(route.estimatedTimeMinutes)} min ETA` : "No route"}</div>
+              <div className="card-header"><h3>Live Routing</h3><span className={`status-chip ${route ? "green" : "amber"}`}>{route ? "Dijkstra route" : "Awaiting dispatch"}</span></div>
+              <div className="rider-routing-map" aria-label="Live rider route map">
+                <DeliveryMapView
+                  dropoffNodeId={summary.dropoffNodeId}
+                  emptyMessage={mapError || "No active route assigned yet"}
+                  emptyTitle={mapError ? "Route unavailable" : "Awaiting dispatch"}
+                  locations={locations}
+                  pickupNodeId={summary.pickupNodeId}
+                  routeDriverIndex={routeDriverIndex}
+                  routeSummary={route}
+                  showLocationsWhenNoRoute={false}
+                />
+              </div>
+              <div className="rider-map-stats">
+                <div><strong>{route ? Math.ceil(route.estimatedTimeMinutes) : 0}m</strong><small>ETA</small></div>
+                <div><strong>{route ? route.totalDistanceKm.toFixed(2) : "0.00"} km</strong><small>Distance</small></div>
               </div>
             </article>
           )}

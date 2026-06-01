@@ -9,6 +9,34 @@ function restaurantName(restaurant) {
   return restaurant.restaurantName || restaurant.name;
 }
 
+const categoryMeta = {
+  Malay: { emoji: "🍛", subtitle: "Local rice favourites", tone: "sunset" },
+  Chinese: { emoji: "🍜", subtitle: "Noodles and rice", tone: "red" },
+  Western: { emoji: "🍗", subtitle: "Chops and fries", tone: "amber" },
+  Drinks: { emoji: "🧋", subtitle: "Coffee and coolers", tone: "blue" },
+  Snacks: { emoji: "🥐", subtitle: "Quick bites", tone: "orange" },
+  Vegetarian: { emoji: "🥗", subtitle: "Fresh and light", tone: "green" },
+  Cafe: { emoji: "☕", subtitle: "Toast and brunch", tone: "cafe" },
+  Mamak: { emoji: "🫓", subtitle: "Roti and mamak", tone: "mamak" },
+  Healthy: { emoji: "🥙", subtitle: "Balanced bowls", tone: "green" }
+};
+
+function getCategoryMeta(category = "") {
+  return categoryMeta[category] || { emoji: "🍽️", subtitle: "Campus food", tone: "green" };
+}
+
+function ImageTile({ src, category, label, className = "" }) {
+  const meta = getCategoryMeta(category);
+
+  return (
+    <div className={`food-image-tile ${meta.tone} ${className}`}>
+      {src && <img src={src} alt={label} onError={(event) => { event.currentTarget.hidden = true; }} />}
+      <span className="food-fallback-emoji" aria-hidden="true">{meta.emoji}</span>
+      <strong>{category || "Campus food"}</strong>
+    </div>
+  );
+}
+
 export default function BrowseMenu({ initialCategory = "All Items", cartItems = [], onCartAdd = () => {}, onCartRemove = () => {}, onNavigate = () => {}, cartCount = 0 }) {
   const [categories, setCategories] = useState(["All Items"]);
   const [restaurants, setRestaurants] = useState([]);
@@ -97,8 +125,9 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
         description: `Served by ${restaurantName(selectedRestaurant)}`,
         displayPrice: `RM ${javaItem.price.toFixed(2)}`,
         priceValue: javaItem.price,
-        prepTime: "Live",
-        tone: "green"
+        prepTime: "15-25 min",
+        imageUrl: javaItem.imageUrl,
+        tone: getCategoryMeta(javaItem.category).tone
       }))
       .filter((item) => {
         const matchesCategory = categoryMatches(selectedCategory, item.category);
@@ -109,7 +138,7 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
 
   const searchPlaceholder = selectedRestaurant
     ? `Search ${restaurantName(selectedRestaurant)} menu...`
-    : "Search live restaurants, food, drinks...";
+    : "Search nasi lemak, coffee, chicken rice...";
 
   return (
     <div className="page-stack browse-menu-page">
@@ -118,14 +147,19 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
         {cartCount > 0 && <strong>{cartCount}</strong>}
       </button>
 
-      <section className="menu-hero card">
+      <section className="menu-hero card food-delivery-menu-hero">
         <div className="menu-hero-top">
           <div>
             <p className="eyebrow">Campus food delivery</p>
             <h2>What are you craving today?</h2>
-            <p>Choose a campus restaurant first, then browse the real-time menu.</p>
+            <p>Browse campus restaurants, drinks, snacks, and hot meals for delivery to your block.</p>
           </div>
           <span className="status-chip green">{cartCount} in cart</span>
+        </div>
+        <div className="menu-hero-food-row" aria-hidden="true">
+          <span>🍛 Nasi lemak</span>
+          <span>🧋 Iced tea</span>
+          <span>🍗 Chicken chop</span>
         </div>
         <form className="hero-search" onSubmit={(event) => event.preventDefault()}>
           <span className="material-symbols-outlined">search</span>
@@ -136,11 +170,14 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
       </section>
 
       <div className="category-strip menu-category-strip">
-        {categories.map((category) => (
-          <button className={selectedCategory === category ? "active" : ""} type="button" key={category} onClick={() => handleCategoryChange(category)}>
-            {category}
+        {categories.map((category) => {
+          const meta = getCategoryMeta(category);
+          return (
+          <button className={`${selectedCategory === category ? "active" : ""} ${meta.tone}`} type="button" key={category} onClick={() => handleCategoryChange(category)}>
+            <span aria-hidden="true">{category === "All Items" ? "🍱" : category === "More Filters" ? "✨" : meta.emoji}</span>
+            <strong>{category}</strong>
           </button>
-        ))}
+        );})}
       </div>
 
       {!selectedRestaurant ? (
@@ -154,15 +191,17 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
             {visibleRestaurants.map((restaurant) => (
               <article className="browse-restaurant-card" key={restaurant.restaurantId}>
                 <button className="restaurant-card-button" type="button" onClick={() => handleRestaurantClick(restaurant)}>
-                  <div className="restaurant-cover food-photo green"><span>{restaurant.nodeId}</span></div>
+                  <ImageTile src={restaurant.imageUrl} category={restaurant.category?.split(" ")[0]} label={restaurantName(restaurant)} className="restaurant-cover" />
                   <div className="restaurant-card-body">
-                    <div className="menu-card-topline"><span className={restaurant.status === "Open" ? "status-chip green" : "status-chip neutral"}>{restaurant.status}</span><span className="rating-pill">{restaurant.restaurantId}</span></div>
+                    <div className="menu-card-topline"><span className={restaurant.status === "Open" ? "status-chip green" : "status-chip neutral"}>{restaurant.status}</span><span className="rating-pill">★ 4.{restaurant.restaurantId?.slice(-1) || "8"}</span></div>
                     <h3>{restaurantName(restaurant)}</h3>
                     <p className="muted">{restaurant.category}</p>
                     <p>{restaurant.campusLocation}</p>
                     <div className="restaurant-meta-row">
-                      <span><span className="material-symbols-outlined">restaurant</span>{liveMenuData.filter((item) => item.restaurantId === restaurant.restaurantId).length} live items</span>
+                      <span><span className="material-symbols-outlined">schedule</span>15-25 min</span>
+                      <span><span className="material-symbols-outlined">restaurant</span>{liveMenuData.filter((item) => item.restaurantId === restaurant.restaurantId).length} items</span>
                     </div>
+                    <div className="restaurant-tag-row"><span>Free delivery</span><span>Lunch pick</span><span>Near campus</span></div>
                     <span className="icon-label-button full as-link"><span className="material-symbols-outlined">storefront</span>View menu</span>
                   </div>
                 </button>
@@ -173,7 +212,7 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
       ) : (
         <section className="menu-section">
           <div className="restaurant-detail-header card">
-            <div className="restaurant-detail-cover food-photo green"><span>{selectedRestaurant.nodeId}</span></div>
+            <ImageTile src={selectedRestaurant.imageUrl} category={selectedRestaurant.category?.split(" ")[0]} label={restaurantName(selectedRestaurant)} className="restaurant-detail-cover" />
             <div className="restaurant-detail-body">
               <button className="text-button back-button" type="button" onClick={() => setSelectedRestaurant(null)}><span className="material-symbols-outlined">arrow_back</span>Back to restaurants</button>
               <div className="restaurant-detail-title">
@@ -193,12 +232,12 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
               const itemQuantity = getItemQuantity(item);
               return (
                 <article className="menu-card" key={item.id}>
-                  <div className={`food-photo ${item.tone}`}><span>{item.category}</span></div>
+                  <ImageTile src={item.imageUrl} category={item.category} label={item.name} className="food-photo" />
                   <div className="menu-card-body">
-                    <div className="menu-card-topline"><span className="status-chip green">{item.category}</span><span className="rating-pill">{item.prepTime}</span></div>
+                    <div className="menu-card-topline"><span className="status-chip green">{item.category}</span><span className="rating-pill">★ 4.8</span></div>
                     <h3>{item.name}</h3>
                     <p>{item.description}</p>
-                    <div className="menu-meta-row"><span><span className="material-symbols-outlined">storefront</span>{restaurantName(selectedRestaurant)}</span><strong>{item.displayPrice}</strong></div>
+                    <div className="menu-meta-row"><span><span className="material-symbols-outlined">schedule</span>{item.prepTime}</span><strong>{item.displayPrice}</strong></div>
                     {itemQuantity > 0 ? (
                       <div className="quantity-control" aria-label={`Quantity for ${item.name}`}><button type="button" onClick={() => handleRemove(item)} aria-label={`Remove one ${item.name}`}>-</button><span>{itemQuantity}</span><button type="button" onClick={() => handleAdd(item)} aria-label={`Add one ${item.name}`}>+</button></div>
                     ) : (

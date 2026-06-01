@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { fetchJson } from "../api/liveApi.js";
+import { fetchJson, postJson } from "../api/liveApi.js";
 
 function distanceKm(pointA, pointB) {
   const earthRadiusKm = 6371;
@@ -14,12 +14,13 @@ function distanceKm(pointA, pointB) {
   return earthRadiusKm * 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
 }
 
-export default function CartPreview({ items = [], isLoading = false, onRefreshCart = () => {}, onUndoLastCartItem = () => {}, onAddItem = () => {}, onRemoveItem = () => {}, onRemoveAllItem = () => {}, onNavigate = () => {} }) {
+export default function CartPreview({ items = [], isLoading = false, undoAvailable = false, onRefreshCart = () => {}, onUndoLastCartItem = () => {}, onAddItem = () => {}, onRemoveItem = () => {}, onRemoveAllItem = () => {}, onNavigate = () => {} }) {
   const [checkoutMessage, setCheckoutMessage] = useState("");
   const [delivery, setDelivery] = useState({ deliveryAddress: "Loading delivery point...", deliveryNodeId: "NODE_KK12_BLOCK_A", deliveryFee: 0, platformFee: 0 });
   const [locations, setLocations] = useState([]);
   const [locationMessage, setLocationMessage] = useState("");
   const [isLocating, setIsLocating] = useState(false);
+  const canUndo = undoAvailable || items.length > 0;
   const subtotal = useMemo(() => items.reduce((total, item) => total + item.price * item.qty, 0), [items]);
 
   useEffect(() => {
@@ -84,25 +85,14 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
   function checkout() {
     setCheckoutMessage("");
 
-    fetch("http://localhost:8080/api/orders/checkout", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ deliveryNodeId: delivery.deliveryNodeId })
+    postJson("/orders/checkout", {
+      customerId: "USR-001",
+      deliveryNodeId: delivery.deliveryNodeId
     })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`Backend returned ${response.status}`);
-        }
-        return response.json();
-      })
       .then((checkoutResult) => {
         setCheckoutMessage(checkoutResult.message);
         onRefreshCart();
-        if (checkoutResult.assigned) {
-          window.setTimeout(() => onNavigate("order-tracking"), 900);
-        }
+        window.setTimeout(() => onNavigate("order-tracking"), 900);
       })
       .catch((error) => {
         console.error("Failed to checkout order:", error);
@@ -116,7 +106,7 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
         <div>
           <p className="eyebrow">Customer cart</p>
           <h2>Cart Preview</h2>
-          <span>Review campus delivery items from the Spring Boot cart stack.</span>
+          <span>Review your campus meals before checkout.</span>
         </div>
       </section>
 
@@ -145,16 +135,16 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
         <article className="card order-items-card">
           <div className="card-header cart-card-header">
             <div>
-              <p className="eyebrow">Java cart stack preview</p>
+              <p className="eyebrow">Your order</p>
               <h3>Order Items</h3>
             </div>
-            <button className="secondary-button small-button" type="button" onClick={onUndoLastCartItem} disabled={isLoading}>
+            <button className="secondary-button small-button" type="button" onClick={onUndoLastCartItem} disabled={isLoading || !canUndo}>
               <span className="material-symbols-outlined">undo</span>
               Undo Last Action
             </button>
           </div>
           <div className="cart-items-list">
-            {isLoading && <p className="muted">Loading cart from backend...</p>}
+            {isLoading && <p className="muted">Loading your cart...</p>}
             {items.map((item) => (
               <div className="cart-line-item" key={item.id}>
                 <div className="cart-thumb">
@@ -162,7 +152,7 @@ export default function CartPreview({ items = [], isLoading = false, onRefreshCa
                 </div>
                 <div className="cart-item-copy">
                   <strong>{item.name}</strong>
-                  <span>{item.note} &middot; Backend cart item</span>
+                  <span>{item.note} &middot; Campus delivery item</span>
                   <small>RM {item.price.toFixed(2)} each</small>
                 </div>
                 <div className="cart-item-controls">

@@ -1875,6 +1875,17 @@ button {
   color: var(--text);
 }
 
+.category-strip button {
+  min-height: 44px;
+  gap: 8px;
+}
+
+.category-strip button span,
+.category-strip button strong {
+  position: relative;
+  z-index: 1;
+}
+
 .menu-category-strip {
   padding: 2px 2px 6px;
 }
@@ -1987,6 +1998,8 @@ button {
 }
 
 .food-photo {
+  position: relative;
+  overflow: hidden;
   min-height: 150px;
   display: flex;
   align-items: flex-end;
@@ -2014,6 +2027,87 @@ button {
 
 .food-photo.slate {
   background: linear-gradient(135deg, #384551, #a9b9bd);
+}
+
+.food-image-tile {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  align-content: end;
+  gap: 6px;
+  min-height: 130px;
+  padding: 14px;
+  border-radius: 18px;
+  color: #ffffff;
+  background:
+    radial-gradient(circle at 22% 18%, rgba(255, 255, 255, 0.38), transparent 26%),
+    linear-gradient(135deg, #0f8a4a, #f4c24f);
+}
+
+.food-image-tile img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+}
+
+.food-image-tile::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: linear-gradient(180deg, rgba(8, 31, 18, 0.04), rgba(8, 31, 18, 0.68));
+}
+
+.food-image-tile .food-fallback-emoji,
+.food-image-tile strong {
+  position: relative;
+  z-index: 3;
+}
+
+.food-image-tile .food-fallback-emoji {
+  font-size: 38px;
+  line-height: 1;
+}
+
+.food-image-tile strong {
+  width: fit-content;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  color: #143321;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.food-image-tile.sunset {
+  background: linear-gradient(135deg, #0b8f4e, #f9ca4f 58%, #f47d34);
+}
+
+.food-image-tile.red {
+  background: linear-gradient(135deg, #d64238, #ffb45f);
+}
+
+.food-image-tile.amber {
+  background: linear-gradient(135deg, #8d6f35, #f5c85b);
+}
+
+.food-image-tile.blue {
+  background: linear-gradient(135deg, #138bb1, #92def1);
+}
+
+.food-image-tile.orange {
+  background: linear-gradient(135deg, #d05b24, #ffc069);
+}
+
+.food-image-tile.cafe {
+  background: linear-gradient(135deg, #7f5539, #d9b382);
+}
+
+.food-image-tile.mamak {
+  background: linear-gradient(135deg, #186845, #f0a84c);
 }
 
 .menu-card-body {
@@ -2128,8 +2222,8 @@ button {
 }
 
 .restaurant-meta-row {
-  display: grid;
-  grid-template-columns: 1fr;
+  display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   color: var(--muted);
   font-size: 13px;
@@ -2141,6 +2235,21 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.restaurant-tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.restaurant-tag-row span {
+  border-radius: 999px;
+  background: #fff4d9;
+  color: #8f5d00;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 900;
 }
 
 .restaurant-meta-row .material-symbols-outlined,
@@ -2641,6 +2750,46 @@ tbody tr:hover {
   font-size: 20px;
 }
 
+.delivery-map-view {
+  position: relative;
+  width: 100%;
+  min-height: 100%;
+}
+
+.delivery-map-empty-state {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  z-index: 500;
+  display: grid;
+  gap: 3px;
+  width: min(320px, calc(100% - 32px));
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--text);
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+  transform: translateX(-50%);
+}
+
+.delivery-map-empty-state strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.delivery-map-empty-state span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.delivery-map-empty-state .primary-button {
+  justify-content: center;
+  margin-top: 8px;
+  min-height: 38px;
+}
+
 .floating-map-card {
   position: absolute;
   z-index: 4;
@@ -2750,6 +2899,47 @@ tbody tr:hover {
 .preferred-zone-list {
   display: grid;
   gap: 10px;
+}
+
+.admin-map-overview-card {
+  display: grid;
+  gap: 12px;
+}
+
+.admin-map-overview-card .preferred-zone-list {
+  gap: 8px;
+}
+
+.admin-map-alert-list {
+  display: grid;
+  gap: 8px;
+}
+
+.admin-map-alert {
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.admin-map-alert strong {
+  color: #ffffff;
+  font-size: 13px;
+}
+
+.admin-map-alert small {
+  color: rgba(226, 232, 240, 0.72);
+  font-size: 12px;
+}
+
+.admin-map-alert.warning {
+  border-color: rgba(245, 158, 11, 0.24);
+}
+
+.admin-map-alert.danger {
+  border-color: rgba(248, 113, 113, 0.24);
 }
 
 .preferred-zone-row {
@@ -3663,114 +3853,41 @@ tbody tr:hover {
   overflow: hidden;
   border-radius: var(--radius);
   border: 1px solid rgba(190, 201, 190, 0.72);
-  background:
-    radial-gradient(circle at 18% 24%, rgba(0, 104, 55, 0.16), transparent 20%),
-    radial-gradient(circle at 78% 68%, rgba(47, 128, 237, 0.12), transparent 24%),
-    linear-gradient(135deg, #e8f2ee, #edf7f8 48%, #f5f7ee);
+  background: #e5e7eb;
 }
 
-.rider-routing-map::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(35deg, transparent 0 42%, rgba(255, 255, 255, 0.68) 42% 46%, transparent 46%),
-    linear-gradient(118deg, transparent 0 52%, rgba(255, 255, 255, 0.6) 52% 56%, transparent 56%);
+.rider-routing-map .delivery-map-view,
+.rider-routing-map .leaflet-container {
+  min-height: 360px;
 }
 
-.routing-road {
-  position: absolute;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.68);
-  box-shadow: inset 0 0 0 1px rgba(15, 28, 44, 0.04);
-}
-
-.routing-road.road-a {
-  left: 8%;
-  top: 22%;
-  width: 82%;
-  height: 15px;
-  transform: rotate(-18deg);
-}
-
-.routing-road.road-b {
-  left: 20%;
-  top: 66%;
-  width: 70%;
-  height: 14px;
-  transform: rotate(16deg);
-}
-
-.routing-line {
-  position: absolute;
-  left: 23%;
-  top: 34%;
-  width: 54%;
-  height: 34%;
-  border-left: 5px solid var(--primary);
-  border-bottom: 5px solid var(--primary);
-  border-radius: 0 0 0 70px;
-  filter: drop-shadow(0 0 10px rgba(0, 104, 55, 0.22));
-}
-
-.routing-pin {
-  position: absolute;
-  z-index: 2;
-  width: 38px;
-  height: 38px;
+.rider-map-stats {
   display: grid;
-  place-items: center;
-  border: 3px solid #ffffff;
-  border-radius: 999px;
-  color: #ffffff;
-  box-shadow: 0 12px 24px rgba(15, 28, 44, 0.2);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
 }
 
-.routing-pin .material-symbols-outlined {
+.rider-map-stats div {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-low);
+  padding: 12px;
+}
+
+.rider-map-stats strong,
+.rider-map-stats small {
+  display: block;
+}
+
+.rider-map-stats strong {
+  color: var(--primary);
   font-size: 20px;
 }
 
-.routing-pin.vendor {
-  left: 21%;
-  top: 30%;
-  background: var(--primary);
-}
-
-.routing-pin.rider {
-  left: 52%;
-  top: 49%;
-  background: var(--blue);
-}
-
-.routing-pin.dropoff {
-  left: 76%;
-  top: 66%;
-  background: var(--amber);
-}
-
-.routing-traffic-badge {
-  position: absolute;
-  right: 16px;
-  top: 16px;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(0, 104, 55, 0.18);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  color: var(--primary);
-  padding: 8px 11px;
+.rider-map-stats small {
+  color: var(--muted);
   font-size: 12px;
-  font-weight: 900;
-  box-shadow: var(--shadow);
-}
-
-.routing-traffic-badge span {
-  width: 9px;
-  height: 9px;
-  border-radius: 999px;
-  background: #22c55e;
-  box-shadow: 0 0 0 5px rgba(34, 197, 94, 0.14);
+  font-weight: 800;
 }
 
 .rider-zone-manager-card {
@@ -3846,9 +3963,9 @@ tbody tr:hover {
   padding: 34px;
   border-radius: 24px;
   background:
-    radial-gradient(circle at 84% 16%, rgba(255, 255, 255, 0.24), transparent 22%),
-    radial-gradient(circle at 12% 92%, rgba(158, 246, 182, 0.24), transparent 20%),
-    linear-gradient(135deg, #003f22, #006837 54%, #0c9b53);
+    radial-gradient(circle at 84% 16%, rgba(255, 242, 178, 0.34), transparent 22%),
+    radial-gradient(circle at 12% 92%, rgba(255, 145, 77, 0.22), transparent 22%),
+    linear-gradient(135deg, #067a42, #17aa60 50%, #ffc94c);
   color: #ffffff;
   box-shadow: 0 24px 54px rgba(0, 77, 39, 0.22);
 }
@@ -4002,6 +4119,7 @@ tbody tr:hover {
   position: relative;
   width: 62px;
   height: 62px;
+  min-height: 62px;
   display: grid;
   place-items: center;
   border-radius: 20px;
@@ -4009,6 +4127,7 @@ tbody tr:hover {
     radial-gradient(circle at 66% 28%, rgba(255, 255, 255, 0.72), transparent 18%),
     linear-gradient(135deg, var(--primary-soft), #ffffff);
   color: var(--primary);
+  padding: 0;
 }
 
 .hero-food-plate::after {
@@ -4023,8 +4142,16 @@ tbody tr:hover {
   background: var(--primary);
 }
 
-.hero-food-plate .material-symbols-outlined {
-  font-size: 31px;
+.hero-food-plate.food-image-tile::after {
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0), rgba(8, 31, 18, 0.22));
+}
+
+.hero-food-plate.food-image-tile .food-fallback-emoji {
+  font-size: 30px;
+}
+
+.hero-food-plate.food-image-tile strong {
+  display: none;
 }
 
 .hero-food-card strong,
@@ -4073,19 +4200,21 @@ tbody tr:hover {
 
 .app-category-row {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
 }
 
 .app-category-row button {
-  min-height: 108px;
+  min-height: 118px;
   display: grid;
   align-content: center;
   justify-items: center;
   gap: 8px;
   border: 1px solid var(--border);
   border-radius: 22px;
-  background: #ffffff;
+  background:
+    radial-gradient(circle at 82% 14%, rgba(255, 255, 255, 0.74), transparent 26%),
+    linear-gradient(135deg, #ffffff, #effaf1);
   color: var(--text);
   font-weight: 800;
   box-shadow: 0 8px 18px rgba(15, 28, 44, 0.04);
@@ -4098,15 +4227,14 @@ tbody tr:hover {
   box-shadow: 0 14px 28px rgba(15, 28, 44, 0.08);
 }
 
-.app-category-row .material-symbols-outlined {
+.app-category-row .category-emoji {
   width: 44px;
   height: 44px;
   display: grid;
   place-items: center;
   border-radius: 16px;
   background: var(--primary-soft);
-  color: var(--primary);
-  font-size: 27px;
+  font-size: 28px;
 }
 
 .app-category-row strong,
@@ -4380,6 +4508,38 @@ tbody tr:hover {
   align-items: center;
   justify-content: center;
   gap: 16px;
+}
+
+.food-delivery-menu-hero {
+  align-items: stretch;
+  text-align: left;
+  border: 0;
+  background:
+    radial-gradient(circle at 88% 16%, rgba(255, 202, 75, 0.38), transparent 24%),
+    linear-gradient(135deg, #0c7b42, #18aa61 54%, #ffd66b);
+  color: #ffffff;
+}
+
+.food-delivery-menu-hero .eyebrow,
+.food-delivery-menu-hero h2,
+.food-delivery-menu-hero p {
+  color: #ffffff;
+}
+
+.menu-hero-food-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 18px;
+}
+
+.menu-hero-food-row span {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #16452a;
+  padding: 8px 11px;
+  font-size: 13px;
+  font-weight: 900;
 }
 
 .menu-hero-top > div {

@@ -1,10 +1,13 @@
 package com.umdabau.controller;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
@@ -18,44 +21,66 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.umdabau.config.DummyDataLoader;
+import com.umdabau.data_structures.MenuBST;
+import com.umdabau.data_structures.UserHashMap;
+import com.umdabau.models.ActiveOrderRecord;
 import com.umdabau.models.GraphNode;
 import com.umdabau.models.MenuItem;
 import com.umdabau.models.Order;
 import com.umdabau.models.Restaurant;
 import com.umdabau.models.RouteSummary;
 import com.umdabau.models.User;
+import com.umdabau.repository.ActiveOrderRepository;
+import com.umdabau.repository.MenuItemRepository;
+import com.umdabau.repository.RestaurantRepository;
+import com.umdabau.repository.UserRepository;
 
 @RestController
 @RequestMapping("/api/live")
 @CrossOrigin(
-    origins = {"http://localhost:5173", "http://127.0.0.1:5173"},
+    origins = {"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"},
     allowedHeaders = "*",
     methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS}
 )
 public class OperationsController {
+    private static final String DEFAULT_CUSTOMER_ID = "USR-001";
+    private static final double DEFAULT_DELIVERY_FEE = 2.5;
+    private static final double DEFAULT_PLATFORM_FEE = 0.8;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
     private DeliveryService deliveryService;
 
+    @Autowired
+    private UserRepository userRepository;
+
+    @Autowired
+    private RestaurantRepository restaurantRepository;
+
+    @Autowired
+    private ActiveOrderRepository activeOrderRepository;
+
+    @Autowired
+    private MenuItemRepository menuItemRepository;
+
     @GetMapping("/admin/overview")
     public Map<String, Object> getAdminOverview() {
-        List<Order> queuedOrders = deliveryService.getOrderQueue().toList();
-        List<User> users = deliveryService.getUsers().toList();
-        List<Restaurant> restaurants = deliveryService.getRestaurants().toList();
-        RouteSummary route = deliveryService.getLatestRouteSummary();
+        List<Order> activeOrders = getActiveOrdersForMonitoring();
+        List<User> users = userRepository.findAll();
+        List<Restaurant> restaurants = restaurantRepository.findAll();
+        RouteSummary route = getDbBackedLatestRoute();
 
         List<Map<String, Object>> stats = new ArrayList<>();
         stats.add(stat("Total Users", users.size(), "Customers, riders, admins", "group"));
         stats.add(stat("Active Restaurants", restaurants.stream().filter((restaurant) -> "Open".equalsIgnoreCase(restaurant.getStatus())).count(), "Open for ordering", "storefront"));
-        stats.add(stat("Queued Orders", deliveryService.getOrderQueue().getSize(), "Waiting for dispatch", "receipt_long"));
+        stats.add(stat("Queued Orders", activeOrders.stream().filter((order) -> "PENDING_DISPATCH".equalsIgnoreCase(order.status)).count(), "Waiting for dispatch", "receipt_long"));
         stats.add(stat("Available Riders", deliveryService.getRiderHeap().getSize(), "In RiderHeap", "two_wheeler"));
 
         List<Map<String, String>> alerts = new ArrayList<>();
-        if (queuedOrders.isEmpty()) {
+        if (activeOrders.isEmpty()) {
             alerts.add(alert("Queue clear", "No order is waiting in OrderQueue.", "info"));
         } else {
-            alerts.add(alert("Dispatch needed", queuedOrders.size() + " order(s) waiting for rider assignment.", "warning"));
+            alerts.add(alert("Dispatch needed", activeOrders.size() + " active order(s) in monitoring.", "warning"));
         }
         if (route != null) {
             alerts.add(alert("Latest route ready", route.getAssignedRiderId() + " has an active calculated route.", "info"));
@@ -67,7 +92,7 @@ public class OperationsController {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("stats", stats);
         payload.put("alerts", alerts);
-        payload.put("latestOrders", toOrderRows(queuedOrders));
+        payload.put("latestOrders", toOrderRows(activeOrders));
         payload.put("latestRoute", route);
         payload.put("activeRiders", toActiveRiderRows());
         payload.put("pickupNodeId", deliveryService.getLatestPickupNodeId());
@@ -77,17 +102,18 @@ public class OperationsController {
 
     @GetMapping("/orders")
     public Map<String, Object> getOrders() {
-        List<Order> queuedOrders = deliveryService.getOrderQueue().toList();
+        List<Order> activeOrders = getActiveOrdersForMonitoring();
+        long pendingCount = activeOrders.stream().filter((order) -> "PENDING_DISPATCH".equalsIgnoreCase(order.status)).count();
         List<Map<String, Object>> metrics = new ArrayList<>();
-        metrics.add(stat("Active Orders", queuedOrders.size(), "in queue", "receipt_long"));
-        metrics.add(stat("Pending Assignment", queuedOrders.size(), "requires rider", "assignment_late"));
+        metrics.add(stat("Active Orders", activeOrders.size(), "DB-backed active records", "receipt_long"));
+        metrics.add(stat("Pending Assignment", pendingCount, "requires rider", "assignment_late"));
         metrics.add(stat("Avg Delivery Time", latestEta(), "mins", "schedule"));
         metrics.add(stat("Available Riders", deliveryService.getRiderHeap().getSize(), "on standby", "delivery_dining"));
 
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("metrics", metrics);
-        payload.put("orders", toOrderRows(queuedOrders));
-        payload.put("latestRoute", deliveryService.getLatestRouteSummary());
+        payload.put("orders", toOrderRows(activeOrders));
+        payload.put("latestRoute", getDbBackedLatestRoute());
         payload.put("pickupNodeId", deliveryService.getLatestPickupNodeId());
         payload.put("dropoffNodeId", deliveryService.getLatestDropoffNodeId());
         return payload;
@@ -95,12 +121,12 @@ public class OperationsController {
 
     @GetMapping("/customer/home")
     public Map<String, Object> getCustomerHome() {
-        List<MenuItem> menu = DummyDataLoader.populateMenu().inOrderTraversal();
+        List<MenuItem> menu = getMenuItemsFromDatabase();
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("customerName", "Aina Rahman");
         payload.put("deliveryAddress", "KK12 Block A");
         payload.put("deliveryNodeId", "NODE_KK12_BLOCK_A");
-        payload.put("restaurants", deliveryService.getRestaurants().toList());
+        payload.put("restaurants", restaurantRepository.findAll());
         payload.put("recommendedItems", menu.stream().limit(6).toList());
         payload.put("categories", menu.stream().map(MenuItem::getCategory).distinct().toList());
         payload.put("activeOrder", toActiveOrder());
@@ -112,29 +138,101 @@ public class OperationsController {
 
     @GetMapping("/customer/tracking")
     public Map<String, Object> getCustomerTracking() {
+        Order activeOrder = deliveryService.getLatestCustomerOrder();
+        ActiveOrderRecord activeRecord = findActiveOrderRecord(activeOrder);
+        if (activeOrder == null && activeRecord != null) {
+            activeOrder = toOrder(activeRecord);
+        }
+
+        User rider = deliveryService.getLatestAssignedRider();
+        if (rider == null && activeOrder != null && activeOrder.assignedRiderId != null && !activeOrder.assignedRiderId.isBlank()) {
+            rider = userRepository.findById(activeOrder.assignedRiderId).orElse(null);
+        }
+        String pickupNodeId = resolvePickupNodeId(activeOrder, activeRecord);
+        String dropoffNodeId = resolveDropoffNodeId(activeOrder, activeRecord);
+        RouteSummary currentRoute = deliveryService.getLatestRouteSummary();
+        RouteSummary route = activeOrder != null && currentRoute != null && activeOrder.orderId.equals(currentRoute.getOrderId())
+            ? currentRoute
+            : buildRouteFromActiveRecord(activeOrder, activeRecord, rider, pickupNodeId, dropoffNodeId);
+        Restaurant restaurant = activeOrder == null || activeOrder.restaurantId == null
+            ? null
+            : restaurantRepository.findById(activeOrder.restaurantId).orElse(null);
+        String restaurantName = restaurant == null
+            ? activeOrder == null ? "" : activeOrder.restaurantId
+            : restaurant.getRestaurantName();
+        List<MenuItem> items = activeOrder == null || activeOrder.cart == null ? List.of() : activeOrder.cart;
+        double subtotal = activeRecord == null ? items.stream().mapToDouble(MenuItem::getPrice).sum() : activeRecord.getSubtotal();
+        double deliveryFee = activeRecord == null ? DEFAULT_DELIVERY_FEE : activeRecord.getDeliveryFee();
+        double platformFee = activeRecord == null ? DEFAULT_PLATFORM_FEE : activeRecord.getPlatformFee();
+        double total = activeRecord == null ? subtotal + deliveryFee + platformFee : activeRecord.getTotal();
+        Map<String, Object> pickupLocation = graphLocation(pickupNodeId);
+        Map<String, Object> dropoffLocation = graphLocation(dropoffNodeId);
+        Map<String, Object> riderLocation = graphLocation(resolveRiderNodeId(activeRecord, rider, pickupNodeId));
+
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("order", toActiveOrder());
-        payload.put("route", deliveryService.getLatestRouteSummary());
-        payload.put("items", deliveryService.getLatestDispatchedOrder() == null ? List.of() : deliveryService.getLatestDispatchedOrder().cart);
-        payload.put("deliveryFee", 2.5);
-        payload.put("platformFee", 0.8);
-        payload.put("pickupNodeId", deliveryService.getLatestPickupNodeId());
-        payload.put("dropoffNodeId", deliveryService.getLatestDropoffNodeId());
+        payload.put("hasActiveOrder", activeOrder != null);
+        payload.put("active", activeOrder != null);
+        payload.put("orderId", activeOrder == null ? "" : activeOrder.orderId);
+        payload.put("orderStatus", activeOrder == null ? "NO_ACTIVE_ORDER" : activeOrder.status);
+        payload.put("status", activeOrder == null ? "NO_ACTIVE_ORDER" : activeOrder.status);
+        payload.put("restaurantName", restaurantName);
+        payload.put("restaurantId", activeOrder == null ? "" : activeOrder.restaurantId);
+        payload.put("restaurantNode", pickupLocation);
+        payload.put("riderName", rider == null ? "Waiting for rider assignment" : rider.getFullName());
+        payload.put("riderId", rider == null ? "" : rider.getUserId());
+        payload.put("riderNode", riderLocation);
+        payload.put("customerNode", dropoffLocation);
+        payload.put("eta", route == null ? 0 : Math.ceil(route.getEstimatedTimeMinutes()));
+        payload.put("etaMinutes", route == null ? 0 : Math.ceil(route.getEstimatedTimeMinutes()));
+        payload.put("distanceKm", route == null ? 0 : route.getTotalDistanceKm());
+        payload.put("route", route);
+        payload.put("routePath", route == null ? List.of() : Arrays.asList(route.getPath()));
+        payload.put("routeNodes", route == null ? List.of() : Arrays.asList(route.getPath()));
+        payload.put("items", items);
+        payload.put("orderItems", items);
+        payload.put("subtotal", subtotal);
+        payload.put("deliveryFee", deliveryFee);
+        payload.put("platformFee", platformFee);
+        payload.put("tax", platformFee);
+        payload.put("total", total);
+        payload.put("pickupNodeId", pickupNodeId);
+        payload.put("pickupLocation", pickupLocation);
+        payload.put("dropoffNodeId", dropoffNodeId);
+        payload.put("dropoffLocation", dropoffLocation);
+        payload.put("locations", activeOrder == null ? getLocations() : List.of());
+        payload.put("order", toTrackingOrder(activeOrder, route, restaurant, rider, dropoffNodeId, total));
         return payload;
     }
 
     @GetMapping("/rider/summary")
     public Map<String, Object> getRiderSummary() {
+        ActiveOrderRecord activeRecord = findActiveOrderRecord(deliveryService.getLatestDispatchedOrder());
+        Order activeOrder = deliveryService.getLatestDispatchedOrder();
+        if (activeOrder == null && activeRecord != null) {
+            activeOrder = toOrder(activeRecord);
+        }
+
+        User rider = findAssignedRider(activeOrder);
+        String pickupNodeId = resolvePickupNodeId(activeOrder, activeRecord);
+        String dropoffNodeId = resolveDropoffNodeId(activeOrder, activeRecord);
         RouteSummary route = deliveryService.getLatestRouteSummary();
+        if (route == null) {
+            route = buildRouteFromActiveRecord(activeOrder, activeRecord, rider, pickupNodeId, dropoffNodeId);
+        }
+        Restaurant restaurant = activeOrder == null || activeOrder.restaurantId == null
+            ? null
+            : restaurantRepository.findById(activeOrder.restaurantId).orElse(null);
+        double total = activeRecord == null ? activeOrder == null ? 0.0 : activeOrder.totalPrice : activeRecord.getTotal();
+
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("availableRiders", deliveryService.getRiderHeap().getSize());
-        payload.put("currentNode", "NODE_FSKTM");
+        payload.put("currentNode", rider == null || !hasText(rider.getCurrentNodeId()) ? "NODE_FSKTM" : rider.getCurrentNodeId());
         payload.put("activeZones", List.of("NODE_FSKTM", "NODE_LIBRARY", "NODE_UM_CENTRAL"));
         payload.put("earnings", route == null ? 0.0 : Math.max(4.5, route.getTotalDistanceKm() * 2.0));
-        payload.put("assignedOrder", toActiveOrder());
+        payload.put("assignedOrder", toTrackingOrder(activeOrder, route, restaurant, rider, dropoffNodeId, total));
         payload.put("latestRoute", route);
-        payload.put("pickupNodeId", deliveryService.getLatestPickupNodeId());
-        payload.put("dropoffNodeId", deliveryService.getLatestDropoffNodeId());
+        payload.put("pickupNodeId", pickupNodeId);
+        payload.put("dropoffNodeId", dropoffNodeId);
         return payload;
     }
 
@@ -145,66 +243,86 @@ public class OperationsController {
 
     @GetMapping("/users")
     public List<User> getUsers() {
-        return deliveryService.getUsers().toList();
+        return userRepository.findAll();
+    }
+
+    @GetMapping("/users/{userId}")
+    public ResponseEntity<User> getUserById(@PathVariable String userId) {
+        UserHashMap userLookup = new UserHashMap(16);
+        for (User user : userRepository.findAll()) {
+            userLookup.put(user.getUserId(), user);
+        }
+
+        User foundUser = userLookup.get(userId);
+        if (foundUser == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(foundUser);
     }
 
     @PostMapping("/users")
     public ResponseEntity<User> addUser(@RequestBody User user) {
-        boolean added = deliveryService.getUsers().addUser(user);
-        if (!added) {
-            deliveryService.getUsers().updateUser(user);
-        }
-        if ("Rider".equalsIgnoreCase(user.getRole()) && user.isAvailable()) {
-            deliveryService.getRiderHeap().insert(user, 1.0);
-        }
-        return ResponseEntity.ok(user);
+        User savedUser = userRepository.save(user);
+        deliveryService.hydrateRuntimeData();
+        return ResponseEntity.ok(savedUser);
     }
 
     @PutMapping("/users/{userId}")
     public ResponseEntity<User> updateUser(@PathVariable String userId, @RequestBody User user) {
-        user.setUserId(userId);
-        if (!deliveryService.getUsers().updateUser(user)) {
+        if (!userRepository.existsById(userId)) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(user);
+
+        user.setUserId(userId);
+        User savedUser = userRepository.save(user);
+        deliveryService.hydrateRuntimeData();
+        return ResponseEntity.ok(savedUser);
     }
 
     @DeleteMapping("/users/{userId}")
     public ResponseEntity<Void> deleteUser(@PathVariable String userId) {
-        if (!deliveryService.getUsers().deleteUser(userId)) {
+        if (!userRepository.existsById(userId)) {
             return ResponseEntity.notFound().build();
         }
+
+        userRepository.deleteById(userId);
+        deliveryService.hydrateRuntimeData();
         return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/restaurants")
     public List<Restaurant> getRestaurants() {
-        return deliveryService.getRestaurants().toList();
+        return restaurantRepository.findAll();
     }
 
     @PostMapping("/restaurants")
     public ResponseEntity<Restaurant> addRestaurant(@RequestBody Restaurant restaurant) {
-        boolean added = deliveryService.getRestaurants().addRestaurant(restaurant);
-        if (!added) {
-            deliveryService.getRestaurants().updateRestaurant(restaurant);
-        }
-        return ResponseEntity.ok(restaurant);
+        Restaurant savedRestaurant = restaurantRepository.save(restaurant);
+        deliveryService.hydrateRuntimeData();
+        return ResponseEntity.ok(savedRestaurant);
     }
 
     @PutMapping("/restaurants/{restaurantId}")
     public ResponseEntity<Restaurant> updateRestaurant(@PathVariable String restaurantId, @RequestBody Restaurant restaurant) {
-        restaurant.setRestaurantId(restaurantId);
-        if (!deliveryService.getRestaurants().updateRestaurant(restaurant)) {
+        if (restaurantRepository.findById(restaurantId).isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(restaurant);
+
+        restaurant.setRestaurantId(restaurantId);
+        Restaurant savedRestaurant = restaurantRepository.save(restaurant);
+        deliveryService.hydrateRuntimeData();
+        return ResponseEntity.ok(savedRestaurant);
     }
 
     @DeleteMapping("/restaurants/{restaurantId}")
     public ResponseEntity<Void> deleteRestaurant(@PathVariable String restaurantId) {
-        if (!deliveryService.getRestaurants().deleteRestaurant(restaurantId)) {
+        if (!restaurantRepository.existsById(restaurantId)) {
             return ResponseEntity.notFound().build();
         }
+
+        restaurantRepository.deleteById(restaurantId);
+        deliveryService.hydrateRuntimeData();
         return ResponseEntity.noContent().build();
     }
 
@@ -298,12 +416,230 @@ public class OperationsController {
     }
 
     private Map<String, Object> graphLocation(String nodeId) {
+        if (nodeId == null || nodeId.isBlank()) {
+            return location("", "", 0, 0);
+        }
+
         GraphNode node = deliveryService.getCampusMap().getNodeById(nodeId);
         if (node == null) {
             return location(nodeId, nodeId, 0, 0);
         }
 
         return location(node.nodeId, node.name, node.latitude, node.longitude);
+    }
+
+    private List<Order> getActiveOrdersForMonitoring() {
+        List<Order> orders = new ArrayList<>(deliveryService.getOrderQueue().toList());
+        for (ActiveOrderRecord record : activeOrderRepository.findByActiveTrueOrderByTimestampAsc()) {
+            if (!containsOrder(orders, record.getOrderId())) {
+                orders.add(toOrder(record));
+            }
+        }
+        return orders;
+    }
+
+    private boolean containsOrder(List<Order> orders, String orderId) {
+        return orders.stream().anyMatch((order) -> order.orderId != null && order.orderId.equals(orderId));
+    }
+
+    private RouteSummary getDbBackedLatestRoute() {
+        RouteSummary route = deliveryService.getLatestRouteSummary();
+        if (route != null) {
+            return route;
+        }
+
+        ActiveOrderRecord activeRecord = findActiveOrderRecord(deliveryService.getLatestDispatchedOrder());
+        if (activeRecord == null) {
+            return null;
+        }
+
+        Order order = toOrder(activeRecord);
+        return buildRouteFromActiveRecord(
+            order,
+            activeRecord,
+            findAssignedRider(order),
+            resolvePickupNodeId(order, activeRecord),
+            resolveDropoffNodeId(order, activeRecord)
+        );
+    }
+
+    private User findAssignedRider(Order order) {
+        if (order == null || order.assignedRiderId == null || order.assignedRiderId.isBlank()) {
+            return null;
+        }
+
+        return userRepository.findById(order.assignedRiderId).orElse(null);
+    }
+
+    private ActiveOrderRecord findActiveOrderRecord(Order activeOrder) {
+        if (activeOrder != null && activeOrder.orderId != null) {
+            return activeOrderRepository.findById(activeOrder.orderId).orElse(null);
+        }
+
+        return activeOrderRepository.findTopByCustomerIdAndActiveTrueOrderByTimestampDesc(DEFAULT_CUSTOMER_ID)
+            .or(() -> activeOrderRepository.findTopByActiveTrueOrderByTimestampDesc())
+            .orElse(null);
+    }
+
+    private Order toOrder(ActiveOrderRecord record) {
+        Order order = new Order();
+        order.orderId = record.getOrderId();
+        order.customerId = record.getCustomerId();
+        order.restaurantId = record.getRestaurantId();
+        order.assignedRiderId = record.getAssignedRiderId();
+        order.deliveryNodeId = record.getDeliveryNodeId();
+        order.status = record.getStatus();
+        order.timestamp = record.getTimestamp();
+        order.totalPrice = record.getSubtotal();
+        order.cart = parseOrderItems(record.getItemsJson());
+        return order;
+    }
+
+    private List<MenuItem> parseOrderItems(String itemsJson) {
+        if (itemsJson == null || itemsJson.isBlank()) {
+            return List.of();
+        }
+
+        try {
+            return objectMapper.readValue(itemsJson, new TypeReference<List<MenuItem>>() {});
+        } catch (Exception error) {
+            return List.of();
+        }
+    }
+
+    private List<MenuItem> getMenuItemsFromDatabase() {
+        MenuBST menuDatabase = new MenuBST();
+        for (MenuItem item : menuItemRepository.findAll()) {
+            menuDatabase.insert(item);
+        }
+        return menuDatabase.inOrderTraversal();
+    }
+
+    private String resolvePickupNodeId(Order activeOrder, ActiveOrderRecord activeRecord) {
+        if (hasText(activeRecord == null ? null : activeRecord.getPickupNodeId())) {
+            return activeRecord.getPickupNodeId();
+        }
+
+        return activeOrder == null ? deliveryService.getLatestPickupNodeId() : deliveryService.getRestaurantNodeForOrder(activeOrder);
+    }
+
+    private String resolveDropoffNodeId(Order activeOrder, ActiveOrderRecord activeRecord) {
+        if (hasText(activeRecord == null ? null : activeRecord.getDropoffNodeId())) {
+            return activeRecord.getDropoffNodeId();
+        }
+
+        return activeOrder == null ? deliveryService.getLatestDropoffNodeId() : deliveryService.getCustomerNodeForOrder(activeOrder);
+    }
+
+    private String resolveRiderNodeId(ActiveOrderRecord activeRecord, User rider, String fallbackNodeId) {
+        if (hasText(activeRecord == null ? null : activeRecord.getRiderNodeId())) {
+            return normalizeKnownNodeId(activeRecord.getRiderNodeId(), fallbackNodeId);
+        }
+
+        if (rider != null && hasText(rider.getCurrentNodeId())) {
+            return normalizeKnownNodeId(rider.getCurrentNodeId(), fallbackNodeId);
+        }
+
+        return fallbackNodeId;
+    }
+
+    private RouteSummary buildRouteFromActiveRecord(Order order, ActiveOrderRecord record, User rider, String pickupNodeId, String dropoffNodeId) {
+        if (order == null || record == null || !hasText(order.assignedRiderId)) {
+            return null;
+        }
+
+        String riderNodeId = resolveRiderNodeId(record, rider, pickupNodeId);
+        String resolvedPickupNodeId = normalizeKnownNodeId(pickupNodeId, "NODE_UM_CENTRAL");
+        String resolvedDropoffNodeId = normalizeKnownNodeId(dropoffNodeId, "NODE_KK12_BLOCK_A");
+
+        try {
+            RouteSummary riderToRestaurant = deliveryService.getCampusMap().runDijkstra(
+                riderNodeId,
+                resolvedPickupNodeId,
+                order.orderId,
+                order.assignedRiderId
+            );
+            RouteSummary restaurantToCustomer = deliveryService.getCampusMap().runDijkstra(
+                resolvedPickupNodeId,
+                resolvedDropoffNodeId,
+                order.orderId,
+                order.assignedRiderId
+            );
+            return combineRouteSummaries(riderToRestaurant, restaurantToCustomer);
+        } catch (IllegalArgumentException error) {
+            return null;
+        }
+    }
+
+    private RouteSummary combineRouteSummaries(RouteSummary firstRoute, RouteSummary secondRoute) {
+        GraphNode[] firstPath = firstRoute.getPath();
+        GraphNode[] secondPath = secondRoute.getPath();
+        int secondPathStart = secondPath.length > 0 ? 1 : 0;
+        GraphNode[] combinedPath = new GraphNode[firstPath.length + secondPath.length - secondPathStart];
+
+        for (int i = 0; i < firstPath.length; i++) {
+            combinedPath[i] = firstPath[i];
+        }
+
+        for (int i = secondPathStart; i < secondPath.length; i++) {
+            combinedPath[firstPath.length + i - secondPathStart] = secondPath[i];
+        }
+
+        return new RouteSummary(
+            firstRoute.getOrderId(),
+            firstRoute.getAssignedRiderId(),
+            combinedPath,
+            firstRoute.getTotalDistanceKm() + secondRoute.getTotalDistanceKm(),
+            firstRoute.getEstimatedTimeMinutes() + secondRoute.getEstimatedTimeMinutes()
+        );
+    }
+
+    private String normalizeKnownNodeId(String nodeId, String fallbackNodeId) {
+        if (!hasText(nodeId)) {
+            return fallbackNodeId;
+        }
+
+        String resolvedNodeId = switch (nodeId) {
+            case "CENTRAL_EATERY" -> "NODE_UM_CENTRAL";
+            case "ENGINEERING_QUAD" -> "NODE_ENGINEERING";
+            case "LIBRARY" -> "NODE_LIBRARY";
+            case "FSKTM_BLOCK_A" -> "NODE_FSKTM";
+            case "KK12" -> "NODE_KK12_BLOCK_A";
+            default -> nodeId;
+        };
+
+        return deliveryService.getCampusMap().getNodeById(resolvedNodeId) == null ? fallbackNodeId : resolvedNodeId;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private Map<String, Object> toTrackingOrder(Order order, RouteSummary route, Restaurant restaurant, User rider, String dropoffNodeId, double total) {
+        Map<String, Object> activeOrder = new LinkedHashMap<>();
+        if (order == null) {
+            activeOrder.put("id", "");
+            activeOrder.put("vendor", "");
+            activeOrder.put("destination", "");
+            activeOrder.put("rider", "");
+            activeOrder.put("riderId", "");
+            activeOrder.put("status", "NO_ACTIVE_ORDER");
+            activeOrder.put("eta", 0);
+            activeOrder.put("total", 0.0);
+            activeOrder.put("timestamp", 0);
+            return activeOrder;
+        }
+
+        activeOrder.put("id", order.orderId);
+        activeOrder.put("vendor", restaurant == null ? order.restaurantId : restaurant.getRestaurantName());
+        activeOrder.put("destination", dropoffNodeId);
+        activeOrder.put("rider", rider == null ? "Waiting for rider assignment" : rider.getFullName());
+        activeOrder.put("riderId", rider == null ? "" : rider.getUserId());
+        activeOrder.put("status", order.status);
+        activeOrder.put("eta", route == null ? 0 : Math.ceil(route.getEstimatedTimeMinutes()));
+        activeOrder.put("total", total);
+        activeOrder.put("timestamp", order.timestamp);
+        return activeOrder;
     }
 
     private List<Map<String, Object>> toOrderRows(List<Order> orders) {
@@ -345,13 +681,19 @@ public class OperationsController {
 
     private Map<String, Object> toActiveOrder() {
         Order order = deliveryService.getLatestDispatchedOrder();
-        RouteSummary route = deliveryService.getLatestRouteSummary();
+        ActiveOrderRecord activeRecord = findActiveOrderRecord(order);
+        if (order == null && activeRecord != null) {
+            order = toOrder(activeRecord);
+        }
+
+        User rider = findAssignedRider(order);
+        RouteSummary route = getDbBackedLatestRoute();
         Map<String, Object> activeOrder = new LinkedHashMap<>();
         activeOrder.put("id", order == null ? "No dispatched order" : order.orderId);
         activeOrder.put("vendor", order == null ? "Awaiting dispatch" : order.restaurantId);
         activeOrder.put("destination", order == null ? "No active destination" : order.deliveryNodeId);
-        activeOrder.put("rider", route == null ? "Unassigned" : riderName(route.getAssignedRiderId()));
-        activeOrder.put("riderId", route == null ? "" : route.getAssignedRiderId());
+        activeOrder.put("rider", rider == null ? "Unassigned" : rider.getFullName());
+        activeOrder.put("riderId", rider == null ? "" : rider.getUserId());
         activeOrder.put("status", order == null ? "No Active Delivery" : order.status);
         activeOrder.put("eta", latestEta());
         activeOrder.put("total", order == null ? 0.0 : order.totalPrice);
@@ -369,7 +711,7 @@ public class OperationsController {
     }
 
     private String latestEta() {
-        RouteSummary route = deliveryService.getLatestRouteSummary();
+        RouteSummary route = getDbBackedLatestRoute();
         if (route == null) {
             return "0";
         }

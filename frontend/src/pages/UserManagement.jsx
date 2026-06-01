@@ -37,6 +37,10 @@ export default function UserManagement() {
   }, []);
 
   function updateField(field, value) {
+    if (editingId && field === "userId") {
+      return;
+    }
+
     setForm((current) => ({
       ...current,
       [field]: value,
@@ -53,7 +57,7 @@ export default function UserManagement() {
     event.preventDefault();
     const cleanedUser = {
       ...form,
-      userId: form.userId.trim(),
+      userId: editingId || form.userId.trim(),
       fullName: form.fullName.trim(),
       email: form.email.trim(),
       available: form.role === "Rider" ? form.available : false,
@@ -114,7 +118,11 @@ export default function UserManagement() {
           </div>
 
           <div className="form-grid">
-            <label><span>User ID</span><input value={form.userId} onChange={(event) => updateField("userId", event.target.value)} required /></label>
+            <label>
+              <span>User ID</span>
+              <input value={form.userId} onChange={(event) => updateField("userId", event.target.value)} readOnly={Boolean(editingId)} required />
+              {editingId && <small>User ID cannot be changed after creation.</small>}
+            </label>
             <label><span>Full name</span><input value={form.fullName} onChange={(event) => updateField("fullName", event.target.value)} required /></label>
             <label className="wide"><span>Email</span><input type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} required /></label>
             <label><span>Role</span><select value={form.role} onChange={(event) => updateField("role", event.target.value)}>{roleOptions.map((role) => <option key={role}>{role}</option>)}</select></label>
@@ -129,7 +137,7 @@ export default function UserManagement() {
 
           <button className="primary-button full" type="submit">
             <span className="material-symbols-outlined">{editingId ? "save" : "person_add"}</span>
-            {editingId ? "Save User" : "Add User"}
+            {editingId ? "Save Changes" : "Add User"}
           </button>
         </form>
 

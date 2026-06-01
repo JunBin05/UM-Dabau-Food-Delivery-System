@@ -59,7 +59,8 @@ function toCartLineItem(item, fallbackIndex = 0) {
     qty: item.qty || 1,
     price: Number(item.price ?? item.priceValue ?? 0),
     note: item.category || item.note || item.vendor || item.restaurantId || "Cart item",
-    category: item.category
+    category: item.category,
+    imageUrl: item.imageUrl
   };
 }
 
@@ -69,7 +70,8 @@ function toMenuItemPayload(item) {
     restaurantId: item.restaurantId,
     name: item.name,
     price: Number(item.price ?? item.priceValue ?? 0),
-    category: item.category || item.note || ""
+    category: item.category || item.note || "",
+    imageUrl: item.imageUrl || ""
   };
 }
 
@@ -93,6 +95,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = usePersistentState("um-dabau-page", "customer-dashboard");
   const [browseCategory, setBrowseCategory] = useState(() => getValidBrowseCategory(new URLSearchParams(window.location.search).get("category")));
   const [cartItems, setCartItems] = useState([]);
+  const [isUndoAvailable, setIsUndoAvailable] = useState(false);
   const [isCartLoading, setIsCartLoading] = useState(false);
   const directRoute = routeByPath[window.location.pathname];
   const activeRole = directRoute?.role ?? role;
@@ -101,18 +104,30 @@ export default function App() {
   const refreshCartItems = useCallback(() => {
     setIsCartLoading(true);
 
-    return fetch(`${ordersApiUrl}/cart`)
+    const cartRequest = fetch(`${ordersApiUrl}/cart`)
       .then((response) => {
         if (!response.ok) {
           throw new Error(`Backend returned ${response.status}`);
         }
         return response.json();
-      })
-      .then((items) => {
-        setCartItems(normalizeCartItems(items));
+      });
+    const undoRequest = fetch(`${ordersApiUrl}/cart/undo-available`)
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error(`Backend returned ${response.status}`);
+        }
+        return response.json();
+      });
+
+    return Promise.all([cartRequest, undoRequest.catch(() => ({ undoAvailable: false }))])
+      .then(([items, undoState]) => {
+        const normalizedItems = normalizeCartItems(items);
+        setCartItems(normalizedItems);
+        setIsUndoAvailable(Boolean(undoState?.undoAvailable) || normalizedItems.length > 0);
       })
       .catch((error) => {
         console.error("Failed to fetch cart items:", error);
+        setIsUndoAvailable(false);
       })
       .finally(() => {
         setIsCartLoading(false);
@@ -267,11 +282,20 @@ export default function App() {
         if (!response.ok) {
           throw new Error(`Backend returned ${response.status}`);
         }
-        return response.text();
+        return response.json();
       })
-      .then(() => refreshCartItems())
+      .then((cartResult) => {
+        if (Array.isArray(cartResult?.items)) {
+          setCartItems(normalizeCartItems(cartResult.items));
+          setIsUndoAvailable(Boolean(cartResult.undoAvailable));
+          return true;
+        }
+
+        return refreshCartItems();
+      })
       .catch((error) => {
         console.error("Failed to undo last cart action:", error);
+        return refreshCartItems();
       });
   }
 
@@ -311,19 +335,19 @@ export default function App() {
 
   return (
     <AppShell role={activeRole} currentPage={safePage} onNavigate={navigate} onLogout={logout}>
-      {renderPage(safePage, activeRole, navigate, selectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isCartLoading, browseCategory)}
+      {renderPage(safePage, activeRole, navigate, selectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isUndoAvailable, isCartLoading, browseCategory)}
     </AppShell>
   );
 }
 
-function renderPage(page, role, onNavigate, onSelectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isCartLoading, browseCategory) {
+function renderPage(page, role, onNavigate, onSelectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isUndoAvailable, isCartLoading, browseCategory) {
   switch (page) {
     case "customer-dashboard":
       return <CustomerDashboard onNavigate={onNavigate} cartItems={cartItems} />;
     case "browse-menu":
       return <BrowseMenu initialCategory={browseCategory} cartItems={cartItems} onCartAdd={addCartItem} onCartRemove={removeCartItem} onNavigate={onNavigate} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
     case "cart":
-      return <CartPreview items={cartItems} isLoading={isCartLoading} onRefreshCart={refreshCartItems} onUndoLastCartItem={undoLastCartItem} onAddItem={addCartItem} onRemoveItem={removeCartItem} onRemoveAllItem={removeAllCartItems} onNavigate={onNavigate} />;
+      return <CartPreview items={cartItems} isLoading={isCartLoading} undoAvailable={isUndoAvailable} onRefreshCart={refreshCartItems} onUndoLastCartItem={undoLastCartItem} onAddItem={addCartItem} onRemoveItem={removeCartItem} onRemoveAllItem={removeAllCartItems} onNavigate={onNavigate} />;
     case "order-tracking":
       return <OrderTracking onNavigate={onNavigate} />;
     case "rider-dashboard":

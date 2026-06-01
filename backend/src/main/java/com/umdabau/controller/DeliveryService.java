@@ -3,6 +3,10 @@ package com.umdabau.controller; // or package service; if you made a new folder
 import java.util.ArrayList;
 import java.util.List;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
 import com.umdabau.data_structures.OrderQueue;
@@ -10,11 +14,16 @@ import com.umdabau.data_structures.RestaurantList;
 import com.umdabau.data_structures.RiderHeap;
 import com.umdabau.data_structures.UMGraph;
 import com.umdabau.data_structures.UserList;
+import com.umdabau.models.ActiveOrderRecord;
+import com.umdabau.models.MenuItem;
 import com.umdabau.models.Order;
 import com.umdabau.models.Restaurant;
 import com.umdabau.models.RouteSummary;
 import com.umdabau.models.User;
 import com.umdabau.models.GraphNode;
+import com.umdabau.repository.ActiveOrderRepository;
+import com.umdabau.repository.RestaurantRepository;
+import com.umdabau.repository.UserRepository;
 
 @Service // <-- This tells Spring Boot to create EXACTLY ONE instance of this class to share!
 public class DeliveryService {
@@ -28,17 +37,54 @@ public class DeliveryService {
     private final UMGraph campusMap = new UMGraph(120);
     private final UserList users = new UserList();
     private final RestaurantList restaurants = new RestaurantList();
+    private final UserRepository userRepository;
+    private final RestaurantRepository restaurantRepository;
+    private final ActiveOrderRepository activeOrderRepository;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     private RouteSummary latestRouteSummary;
+    private Order latestCustomerOrder;
     private Order latestDispatchedOrder;
     private User latestAssignedRider;
     private String latestPickupNodeId;
     private String latestDropoffNodeId;
     private int simulationRiderSequence = 1;
 
-    public DeliveryService() {
+    public DeliveryService(UserRepository userRepository, RestaurantRepository restaurantRepository, ActiveOrderRepository activeOrderRepository) {
+        this.userRepository = userRepository;
+        this.restaurantRepository = restaurantRepository;
+        this.activeOrderRepository = activeOrderRepository;
         campusMap.initializeCampusMap();
-        seedUsers();
-        seedRestaurants();
+    }
+
+    @EventListener(ApplicationReadyEvent.class)
+    public synchronized void hydrateRuntimeData() {
+        users.clear();
+        restaurants.clear();
+
+        while (!globalRiderHeap.isEmpty()) {
+            globalRiderHeap.pop();
+        }
+
+        while (!globalOrderQueue.isEmpty()) {
+            globalOrderQueue.dequeue();
+        }
+
+        for (User user : userRepository.findAll()) {
+            users.addUser(user);
+            if (isAvailableRider(user)) {
+                globalRiderHeap.insert(user, getDistanceToRestaurant(user, DEFAULT_RESTAURANT_NODE_ID));
+            }
+        }
+
+        for (Restaurant restaurant : restaurantRepository.findAll()) {
+            restaurants.addRestaurant(restaurant);
+        }
+
+        for (ActiveOrderRecord record : activeOrderRepository.findByActiveTrueAndStatusOrderByTimestampAsc("PENDING_DISPATCH")) {
+            globalOrderQueue.enqueue(toOrder(record));
+        }
+
+        hydrateLatestActiveAssignment();
     }
 
     public OrderQueue getOrderQueue() {
@@ -77,6 +123,14 @@ public class DeliveryService {
         this.latestDispatchedOrder = latestDispatchedOrder;
     }
 
+    public Order getLatestCustomerOrder() {
+        return latestCustomerOrder;
+    }
+
+    public void setLatestCustomerOrder(Order latestCustomerOrder) {
+        this.latestCustomerOrder = latestCustomerOrder;
+    }
+
     public User getLatestAssignedRider() {
         return latestAssignedRider;
     }
@@ -111,6 +165,7 @@ public class DeliveryService {
         nextOrder.assignedRiderId = bestRider.getUserId();
         bestRider.setAvailable(false);
         bestRider.setStatus("ASSIGNED");
+        userRepository.save(bestRider);
 
         String riderNode = getStartNode(bestRider);
         String customerNode = getCustomerNode(nextOrder);
@@ -130,10 +185,12 @@ public class DeliveryService {
         RouteSummary routeSummary = combineRouteSummaries(riderToRestaurant, restaurantToCustomer);
 
         latestDispatchedOrder = nextOrder;
+        latestCustomerOrder = nextOrder;
         latestAssignedRider = bestRider;
         latestRouteSummary = routeSummary;
         latestPickupNodeId = restaurantNode;
         latestDropoffNodeId = customerNode;
+        saveAssignedOrderRecord(nextOrder, bestRider, riderNode, restaurantNode, customerNode, routeSummary);
 
         return routeSummary;
     }
@@ -155,16 +212,129 @@ public class DeliveryService {
             rider.setAvailable(true);
             rider.setStatus("Active");
             rider.setCurrentNodeId(latestDropoffNodeId == null ? DEFAULT_DELIVERY_NODE_ID : latestDropoffNodeId);
+            userRepository.save(rider);
             globalRiderHeap.insert(rider, 1.0);
         }
 
+        activeOrderRepository.findById(completedOrder.orderId).ifPresent((record) -> {
+            record.setStatus("DELIVERED");
+            record.setActive(false);
+            activeOrderRepository.save(record);
+        });
+
         latestDispatchedOrder = null;
+        latestCustomerOrder = null;
         latestAssignedRider = null;
         latestRouteSummary = null;
         latestPickupNodeId = null;
         latestDropoffNodeId = null;
 
         return completedOrder;
+    }
+
+    public User clockInRider(User rider, double distanceToRestaurant) {
+        rider.setRole("Rider");
+        rider.setStatus("Active");
+        rider.setAvailable(true);
+        rider.setCurrentNodeId(normalizeNodeId(rider.getCurrentNodeId(), DEFAULT_RIDER_NODE_ID));
+
+        User savedRider = userRepository.save(rider);
+        boolean updatedInMemory = users.updateUser(savedRider);
+        if (!updatedInMemory) {
+            users.addUser(savedRider);
+        }
+        globalRiderHeap.insert(savedRider, distanceToRestaurant);
+        return savedRider;
+    }
+
+    private void hydrateLatestActiveAssignment() {
+        activeOrderRepository.findTopByActiveTrueOrderByTimestampDesc().ifPresent((record) -> {
+            Order order = toOrder(record);
+            latestCustomerOrder = order;
+            latestPickupNodeId = record.getPickupNodeId();
+            latestDropoffNodeId = record.getDropoffNodeId();
+
+            if ("DISPATCHED".equalsIgnoreCase(record.getStatus()) && record.getAssignedRiderId() != null && !record.getAssignedRiderId().isBlank()) {
+                latestDispatchedOrder = order;
+                latestAssignedRider = userRepository.findById(record.getAssignedRiderId()).orElse(null);
+                latestRouteSummary = buildRouteFromRecord(order, record, latestAssignedRider);
+            }
+        });
+    }
+
+    private void saveAssignedOrderRecord(Order order, User rider, String riderNode, String pickupNode, String dropoffNode, RouteSummary routeSummary) {
+        ActiveOrderRecord record = activeOrderRepository.findById(order.orderId).orElseGet(ActiveOrderRecord::new);
+        record.setOrderId(order.orderId);
+        record.setCustomerId(order.customerId);
+        record.setRestaurantId(order.restaurantId);
+        record.setAssignedRiderId(rider.getUserId());
+        record.setDeliveryNodeId(order.deliveryNodeId);
+        record.setPickupNodeId(pickupNode);
+        record.setDropoffNodeId(dropoffNode);
+        record.setRiderNodeId(riderNode);
+        record.setStatus(order.status);
+        record.setTimestamp(order.timestamp);
+        record.setSubtotal(order.totalPrice);
+        record.setTotalDistanceKm(routeSummary.getTotalDistanceKm());
+        record.setEstimatedTimeMinutes(routeSummary.getEstimatedTimeMinutes());
+        record.setActive(true);
+        activeOrderRepository.save(record);
+    }
+
+    private Order toOrder(ActiveOrderRecord record) {
+        Order order = new Order();
+        order.orderId = record.getOrderId();
+        order.customerId = record.getCustomerId();
+        order.restaurantId = record.getRestaurantId();
+        order.assignedRiderId = record.getAssignedRiderId();
+        order.deliveryNodeId = record.getDeliveryNodeId();
+        order.status = record.getStatus();
+        order.timestamp = record.getTimestamp();
+        order.totalPrice = record.getSubtotal();
+        order.cart = parseOrderItems(record.getItemsJson());
+        return order;
+    }
+
+    private List<MenuItem> parseOrderItems(String itemsJson) {
+        if (itemsJson == null || itemsJson.isBlank()) {
+            return List.of();
+        }
+
+        try {
+            return objectMapper.readValue(itemsJson, new TypeReference<List<MenuItem>>() {});
+        } catch (Exception error) {
+            return List.of();
+        }
+    }
+
+    private RouteSummary buildRouteFromRecord(Order order, ActiveOrderRecord record, User rider) {
+        if (order == null || rider == null) {
+            return null;
+        }
+
+        String riderNode = normalizeNodeId(record.getRiderNodeId() == null || record.getRiderNodeId().isBlank()
+            ? rider.getCurrentNodeId()
+            : record.getRiderNodeId(), DEFAULT_RIDER_NODE_ID);
+        String pickupNode = normalizeNodeId(record.getPickupNodeId(), DEFAULT_RESTAURANT_NODE_ID);
+        String dropoffNode = normalizeNodeId(record.getDropoffNodeId(), DEFAULT_DELIVERY_NODE_ID);
+
+        try {
+            RouteSummary riderToRestaurant = campusMap.runDijkstra(
+                riderNode,
+                pickupNode,
+                order.orderId,
+                rider.getUserId()
+            );
+            RouteSummary restaurantToCustomer = campusMap.runDijkstra(
+                pickupNode,
+                dropoffNode,
+                order.orderId,
+                rider.getUserId()
+            );
+            return combineRouteSummaries(riderToRestaurant, restaurantToCustomer);
+        } catch (IllegalArgumentException error) {
+            return null;
+        }
     }
 
     private void reprioritizeRidersForRestaurant(String restaurantNode) {
@@ -205,8 +375,14 @@ public class DeliveryService {
 
         for (int i = 0; i < count; i++) {
             int riderNumber = simulationRiderSequence++;
+            String riderId = "SIM-RIDER-" + riderNumber;
+            while (userRepository.existsById(riderId)) {
+                riderNumber = simulationRiderSequence++;
+                riderId = "SIM-RIDER-" + riderNumber;
+            }
+
             User simulationRider = new User(
-                "SIM-RIDER-" + riderNumber,
+                riderId,
                 "Simulation Rider " + riderNumber,
                 "simulation.rider." + riderNumber + "@umdabau.local",
                 "Rider",
@@ -215,48 +391,13 @@ public class DeliveryService {
                 nodeId
             );
 
-            users.addUser(simulationRider);
-            globalRiderHeap.insert(simulationRider, riderNumber);
-            spawnedRiders.add(simulationRider);
+            User savedRider = userRepository.save(simulationRider);
+            users.addUser(savedRider);
+            globalRiderHeap.insert(savedRider, riderNumber);
+            spawnedRiders.add(savedRider);
         }
 
         return spawnedRiders;
-    }
-
-    private void seedUsers() {
-        users.addUser(new User("USR-001", "Aina Rahman", "aina.rahman@student.um.edu.my", "Customer", "Active", false, ""));
-        users.addUser(new User("USR-002", "Rafiq Lim", "rafiq.lim@rider.umdabau.local", "Rider", "Active", true, "NODE_FSKTM"));
-        users.addUser(new User("USR-003", "Mei Yee", "mei.yee@rider.umdabau.local", "Rider", "Active", true, "NODE_LIBRARY"));
-        users.addUser(new User("USR-004", "Vincent Admin", "vincent.admin@umdabau.local", "Admin", "Active", false, ""));
-        users.addUser(new User("USR-005", "Amir Hakim", "amir.hakim@rider.umdabau.local", "Rider", "Active", true, "NODE_ENGINEERING"));
-        users.addUser(new User("USR-006", "Nur Iman", "nur.iman@rider.umdabau.local", "Rider", "Active", true, "NODE_ZUS"));
-
-        globalRiderHeap.insert(users.findUserById("USR-002"), 1.0);
-        globalRiderHeap.insert(users.findUserById("USR-003"), 2.0);
-        globalRiderHeap.insert(users.findUserById("USR-005"), 3.0);
-        globalRiderHeap.insert(users.findUserById("USR-006"), 4.0);
-    }
-
-    private void seedRestaurants() {
-        restaurants.addRestaurant(new Restaurant("REST-001", "Cafe KK8", "Cafe", "Open", "Kinabalu Residential College", "NODE_CAFE_KK8"));
-        restaurants.addRestaurant(new Restaurant("REST-002", "Cafe KK10", "Cafe", "Open", "Tun Ahmad Zaidi Residential College", "NODE_CAFE_KK10"));
-        restaurants.addRestaurant(new Restaurant("REST-003", "Kafe Bahasa", "Malay", "Open", "Faculty of Languages and Linguistics", "NODE_KAFE_BAHASA"));
-        restaurants.addRestaurant(new Restaurant("REST-004", "Bayu Cafe", "Malay", "Open", "Science Faculty", "NODE_BAYU_CAFE"));
-        restaurants.addRestaurant(new Restaurant("REST-005", "Kafe Sains", "Vegetarian", "Open", "Science Faculty", "NODE_KAFE_SAINS"));
-        restaurants.addRestaurant(new Restaurant("REST-006", "Yogo @ Universiti Malaya", "Snacks", "Open", "IPS / KK12 Route", "NODE_YOGO"));
-        restaurants.addRestaurant(new Restaurant("REST-007", "Foody Avenue & He & She Coffee", "Malay Snacks", "Open", "KK12 Food Court", "NODE_FOODY_AVENUE_HESHE12"));
-        restaurants.addRestaurant(new Restaurant("REST-008", "Novi Kafe", "Cafe", "Open", "KK12", "NODE_NOVI_KAFE"));
-        restaurants.addRestaurant(new Restaurant("REST-009", "Warong Kaki Lima", "Malay", "Open", "KK5", "NODE_WARONG_LIMA"));
-        restaurants.addRestaurant(new Restaurant("REST-010", "Q Bistro Universiti Malaya", "Mamak", "Open", "KL Gate", "NODE_Q_BISTRO"));
-        restaurants.addRestaurant(new Restaurant("REST-011", "ASTAR Cafe", "Malay", "Open", "First College", "NODE_ASTAR_CAFE"));
-        restaurants.addRestaurant(new Restaurant("REST-012", "Toast Kita Cafe", "Cafe", "Open", "KK6", "NODE_TOAST_KITA"));
-        restaurants.addRestaurant(new Restaurant("REST-013", "MediCafe", "Healthy", "Open", "Faculty of Medicine", "NODE_MEDI_CAFE"));
-        restaurants.addRestaurant(new Restaurant("REST-014", "Cafe KK2", "Cafe", "Open", "Tuanku Bahiyah Residential College", "NODE_CAFE_KK2"));
-        restaurants.addRestaurant(new Restaurant("REST-015", "Engineering Fac Chicken Rice", "Chinese", "Open", "Engineering", "NODE_ENG_CHICKEN_RICE"));
-        restaurants.addRestaurant(new Restaurant("REST-016", "KH Shawarma", "Middle Eastern", "Open", "Engineering", "NODE_KH_SHAWARMA"));
-        restaurants.addRestaurant(new Restaurant("REST-017", "ZUS Coffee", "Drinks", "Open", "UM Central Library", "NODE_ZUS"));
-        restaurants.addRestaurant(new Restaurant("REST-018", "UM Central & He & She Coffee", "Cafe", "Open", "UM Central", "NODE_UM_CENTRAL"));
-        restaurants.addRestaurant(new Restaurant("REST-019", "POKOK KL Cafe", "Cafe", "Open", "Faculty of Business & Economics", "NODE_POKOK_CAFE"));
     }
 
     private void ensureAvailableRider(String fallbackNodeId) {
@@ -277,10 +418,19 @@ public class DeliveryService {
 
     private String getRestaurantNode(Order order) {
         if (order.restaurantId != null && !order.restaurantId.isBlank()) {
+            Restaurant restaurant = restaurants.findRestaurantById(order.restaurantId);
+            if (restaurant != null && restaurant.getNodeId() != null && !restaurant.getNodeId().isBlank()) {
+                return normalizeNodeId(restaurant.getNodeId(), DEFAULT_RESTAURANT_NODE_ID);
+            }
+
             return normalizeNodeId(order.restaurantId, DEFAULT_RESTAURANT_NODE_ID);
         }
 
         return DEFAULT_RESTAURANT_NODE_ID;
+    }
+
+    public String getRestaurantNodeForOrder(Order order) {
+        return getRestaurantNode(order);
     }
 
     private String getCustomerNode(Order order) {
@@ -289,6 +439,14 @@ public class DeliveryService {
         }
 
         return DEFAULT_DELIVERY_NODE_ID;
+    }
+
+    private boolean isAvailableRider(User user) {
+        return user != null && "Rider".equalsIgnoreCase(user.getRole()) && user.isAvailable();
+    }
+
+    public String getCustomerNodeForOrder(Order order) {
+        return getCustomerNode(order);
     }
 
     private String normalizeNodeId(String nodeId, String fallbackNodeId) {

@@ -14,94 +14,123 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.umdabau.data_structures.CartStack;
+import com.umdabau.models.ActiveOrderRecord;
+import com.umdabau.models.CartActionRecord;
+import com.umdabau.models.CartItemRecord;
+import com.umdabau.models.GraphNode;
 import com.umdabau.models.MenuItem;
 import com.umdabau.models.Order;
 import com.umdabau.models.RouteSummary;
+import com.umdabau.models.User;
+import com.umdabau.repository.ActiveOrderRepository;
+import com.umdabau.repository.CartActionRepository;
+import com.umdabau.repository.CartItemRepository;
 
 @RestController
 @RequestMapping("/api/orders")
 @CrossOrigin(
-    origins = {"http://localhost:5173", "http://127.0.0.1:5173"},
+    origins = {"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"},
     allowedHeaders = "*",
     methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS}
 )
 public class OrderController {
+    private static final String DEFAULT_CUSTOMER_ID = "USR-001";
+    private static final double DELIVERY_FEE = 2.5;
+    private static final double PLATFORM_FEE = 0.8;
 
     private final CartStack activeCart = new CartStack();
-    private CartAction lastCartAction;
+    private final ObjectMapper objectMapper = new ObjectMapper();
     
     @Autowired
     private DeliveryService deliveryService; // <-- Talk to the Service, not another Controller!
 
+    @Autowired
+    private ActiveOrderRepository activeOrderRepository;
+
+    @Autowired
+    private CartItemRepository cartItemRepository;
+
+    @Autowired
+    private CartActionRepository cartActionRepository;
+
     @PostMapping("/cart/add")
-    public ResponseEntity<String> addToCart(@RequestBody MenuItem item) {
+    public ResponseEntity<Map<String, Object>> addToCart(@RequestBody MenuItem item) {
         System.out.println("Received cart item: " + item.getName());
+        saveOrIncrementCartItem(item);
+        saveCartAction(item);
         activeCart.push(item);
-        lastCartAction = new CartAction("ADD", item, 1);
-        return ResponseEntity.ok("Item added.");
+        return ResponseEntity.ok(cartResponse("Item added."));
     }
 
     @GetMapping("/cart")
     public ResponseEntity<List<MenuItem>> getCartItems() {
+        ensureCartActionHistory();
+        hydrateCartStackFromDatabase();
         return ResponseEntity.ok(activeCart.toList());
     }
 
     @GetMapping("/cart/count")
     public ResponseEntity<Integer> getCartCount() {
+        hydrateCartStackFromDatabase();
         return ResponseEntity.ok(activeCart.getSize());
     }
 
+    @GetMapping("/cart/undo-available")
+    public ResponseEntity<Map<String, Object>> getCartUndoAvailable() {
+        ensureCartActionHistory();
+        return ResponseEntity.ok(Map.of("undoAvailable", cartActionRepository.countByCustomerId(DEFAULT_CUSTOMER_ID) > 0));
+    }
+
     @PostMapping("/cart/undo")
-    public ResponseEntity<String> undoLastCartAction() {
-        if (lastCartAction == null) {
-            return ResponseEntity.badRequest().body("No cart action to undo.");
+    public ResponseEntity<Map<String, Object>> undoLastCartAction() {
+        hydrateCartStackFromActions();
+        MenuItem removedItem = activeCart.pop();
+        CartActionRecord latestAction = cartActionRepository.findTopByCustomerIdOrderByIdDesc(DEFAULT_CUSTOMER_ID).orElse(null);
+
+        if (removedItem == null || latestAction == null) {
+            return ResponseEntity.ok(cartResponse("No cart action to undo."));
         }
 
-        if ("ADD".equals(lastCartAction.type)) {
-            MenuItem removedItem = activeCart.removeOne(lastCartAction.item);
-
-            if (removedItem == null) {
-                return ResponseEntity.notFound().build();
-            }
-        } else if ("REMOVE_ONE".equals(lastCartAction.type)) {
-            activeCart.push(lastCartAction.item);
-        } else if ("REMOVE_ALL".equals(lastCartAction.type)) {
-            for (int i = 0; i < lastCartAction.count; i++) {
-                activeCart.push(lastCartAction.item);
-            }
-        }
-
-        lastCartAction = null;
-        return ResponseEntity.ok("Last cart action undone.");
+        cartActionRepository.delete(latestAction);
+        decrementCartItem(toMenuItem(latestAction));
+        return ResponseEntity.ok(cartResponse("Last cart action undone."));
     }
 
     @PostMapping("/cart/remove")
     public ResponseEntity<MenuItem> removeOneCartItem(@RequestBody MenuItem item) {
+        hydrateCartStackFromDatabase();
         MenuItem removedItem = activeCart.removeOne(item);
 
         if (removedItem == null) {
             return ResponseEntity.notFound().build();
         }
 
-        lastCartAction = new CartAction("REMOVE_ONE", removedItem, 1);
+        decrementCartItem(removedItem);
+        deleteLatestCartAction(removedItem);
         return ResponseEntity.ok(removedItem);
     }
 
     @PostMapping("/cart/remove-all")
     public ResponseEntity<String> removeAllCartItems(@RequestBody MenuItem item) {
+        hydrateCartStackFromDatabase();
         int removedCount = activeCart.removeAll(item);
 
         if (removedCount == 0) {
             return ResponseEntity.notFound().build();
         }
 
-        lastCartAction = new CartAction("REMOVE_ALL", item, removedCount);
+        deleteAllCartRecords(item);
+        deleteAllCartActions(item);
         return ResponseEntity.ok("Removed " + removedCount + " item(s).");
     }
 
     @PostMapping("/checkout")
     public ResponseEntity<Map<String, Object>> checkoutOrder(@RequestBody Order newOrder) {
+        hydrateCartStackFromDatabase();
+
         // 1. ADD THIS CHECK: Don't allow checking out an empty cart!
         if (activeCart.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Cannot checkout: Cart is empty."));
@@ -111,24 +140,31 @@ public class OrderController {
         newOrder.cart = checkedOutItems;
         newOrder.status = "PENDING_DISPATCH";
         newOrder.timestamp = System.currentTimeMillis();
-        newOrder.totalPrice = checkedOutItems.stream()
+        double subtotal = checkedOutItems.stream()
             .mapToDouble(MenuItem::getPrice)
             .sum();
+        newOrder.totalPrice = subtotal;
 
         if (newOrder.orderId == null || newOrder.orderId.isBlank()) {
             newOrder.orderId = "ORD-" + newOrder.timestamp;
         }
 
+        if (newOrder.customerId == null || newOrder.customerId.isBlank()) {
+            newOrder.customerId = DEFAULT_CUSTOMER_ID;
+        }
+
         if ((newOrder.restaurantId == null || newOrder.restaurantId.isBlank()) && !checkedOutItems.isEmpty()) {
             newOrder.restaurantId = checkedOutItems.get(0).getRestaurantId();
+        }
+
+        if (newOrder.deliveryNodeId == null || newOrder.deliveryNodeId.isBlank()) {
+            newOrder.deliveryNodeId = "NODE_KK12_BLOCK_A";
         }
         
         // Put the order into the globally shared queue!
         deliveryService.getOrderQueue().enqueue(newOrder);
-        activeCart.clear();
-        
-        // (Assuming you added lastCartAction for the undo feature)
-        lastCartAction = null; 
+        deliveryService.setLatestCustomerOrder(newOrder);
+        saveActiveOrder(newOrder, subtotal, DELIVERY_FEE, PLATFORM_FEE, true);
 
         RouteSummary routeSummary = null;
         boolean assigned = false;
@@ -139,15 +175,25 @@ public class OrderController {
         } catch (IllegalArgumentException error) {
             assigned = false;
         }
+        saveActiveOrder(newOrder, subtotal, DELIVERY_FEE, PLATFORM_FEE, true);
+        cartItemRepository.deleteAll(cartItemRepository.findByCustomerIdOrderByIdAsc(DEFAULT_CUSTOMER_ID));
+        cartActionRepository.deleteAll(cartActionRepository.findByCustomerIdOrderByIdAsc(DEFAULT_CUSTOMER_ID));
+        activeCart.clear();
 
         Map<String, Object> response = new LinkedHashMap<>();
         String riderName = deliveryService.getLatestAssignedRider() == null ? "" : deliveryService.getLatestAssignedRider().getFullName();
         response.put("message", assigned ? "Driver found: " + riderName + ". Your order is now on the way." : "Order queued. Waiting for an available rider.");
         response.put("orderId", newOrder.orderId);
+        response.put("hasActiveOrder", true);
+        response.put("status", newOrder.status);
         response.put("assigned", assigned);
         response.put("routeSummary", routeSummary);
         response.put("riderName", riderName);
         response.put("pendingOrders", deliveryService.getOrderQueue().getSize());
+        response.put("subtotal", subtotal);
+        response.put("deliveryFee", DELIVERY_FEE);
+        response.put("platformFee", PLATFORM_FEE);
+        response.put("total", subtotal + DELIVERY_FEE + PLATFORM_FEE);
         
         return ResponseEntity.ok(response);
     }
@@ -165,18 +211,193 @@ public class OrderController {
         response.put("orderId", completedOrder.orderId);
         response.put("status", completedOrder.status);
         response.put("availableRiders", deliveryService.getRiderHeap().getSize());
+        activeOrderRepository.findById(completedOrder.orderId).ifPresent((record) -> {
+            record.setStatus("DELIVERED");
+            record.setActive(false);
+            activeOrderRepository.save(record);
+        });
         return ResponseEntity.ok(response);
     }
 
-    private static class CartAction {
-        private final String type;
-        private final MenuItem item;
-        private final int count;
-
-        private CartAction(String type, MenuItem item, int count) {
-            this.type = type;
-            this.item = item;
-            this.count = count;
+    private void hydrateCartStackFromDatabase() {
+        activeCart.clear();
+        for (CartItemRecord record : cartItemRepository.findByCustomerIdOrderByIdAsc(DEFAULT_CUSTOMER_ID)) {
+            int quantity = Math.max(record.getQuantity(), 1);
+            for (int count = 0; count < quantity; count++) {
+                activeCart.push(toMenuItem(record));
+            }
         }
     }
+
+    private void hydrateCartStackFromActions() {
+        ensureCartActionHistory();
+        activeCart.clear();
+        for (CartActionRecord record : cartActionRepository.findByCustomerIdOrderByIdAsc(DEFAULT_CUSTOMER_ID)) {
+            activeCart.push(toMenuItem(record));
+        }
+    }
+
+    private void saveOrIncrementCartItem(MenuItem item) {
+        List<CartItemRecord> records = cartItemRepository.findByCustomerIdAndMenuItemId(DEFAULT_CUSTOMER_ID, menuItemId(item));
+        CartItemRecord record = records.isEmpty() ? new CartItemRecord() : records.get(0);
+        int currentQuantity = records.stream()
+            .mapToInt((cartRecord) -> Math.max(cartRecord.getQuantity(), 1))
+            .sum();
+
+        record.setCustomerId(DEFAULT_CUSTOMER_ID);
+        record.setMenuItemId(menuItemId(item));
+        record.setItemName(item.getName());
+        record.setRestaurantId(item.getRestaurantId());
+        record.setRestaurantName("");
+        record.setPrice(item.getPrice());
+        record.setQuantity(currentQuantity + 1);
+        record.setCategory(item.getCategory());
+        record.setDescription("");
+        record.setAddedOrder(System.currentTimeMillis());
+        cartItemRepository.save(record);
+
+        if (records.size() > 1) {
+            cartItemRepository.deleteAll(records.subList(1, records.size()));
+        }
+    }
+
+    private void decrementCartItem(MenuItem item) {
+        CartItemRecord record = cartItemRepository.findFirstByCustomerIdAndMenuItemIdOrderByIdAsc(DEFAULT_CUSTOMER_ID, menuItemId(item))
+            .orElse(null);
+
+        if (record == null) {
+            return;
+        }
+
+        if (record.getQuantity() <= 1) {
+            cartItemRepository.delete(record);
+            return;
+        }
+
+        record.setQuantity(record.getQuantity() - 1);
+        cartItemRepository.save(record);
+    }
+
+    private void saveCartAction(MenuItem item) {
+        CartActionRecord record = new CartActionRecord();
+        record.setCustomerId(DEFAULT_CUSTOMER_ID);
+        record.setMenuItemId(menuItemId(item));
+        record.setItemName(item.getName());
+        record.setRestaurantId(item.getRestaurantId());
+        record.setRestaurantName("");
+        record.setPrice(item.getPrice());
+        record.setCategory(item.getCategory());
+        record.setActionType("ADD");
+        record.setCreatedAt(System.currentTimeMillis());
+        cartActionRepository.save(record);
+    }
+
+    private void ensureCartActionHistory() {
+        for (CartItemRecord record : cartItemRepository.findByCustomerIdOrderByIdAsc(DEFAULT_CUSTOMER_ID)) {
+            int quantity = Math.max(record.getQuantity(), 1);
+            long actionCount = cartActionRepository.countByCustomerIdAndMenuItemId(DEFAULT_CUSTOMER_ID, record.getMenuItemId());
+            long missingActions = quantity - actionCount;
+
+            for (int count = 0; count < quantity && missingActions > 0; count++) {
+                saveCartAction(toMenuItem(record));
+                missingActions--;
+            }
+        }
+    }
+
+    private MenuItem toMenuItem(CartItemRecord record) {
+        return new MenuItem(
+            record.getMenuItemId(),
+            record.getRestaurantId(),
+            record.getItemName(),
+            record.getPrice(),
+            record.getCategory()
+        );
+    }
+
+    private MenuItem toMenuItem(CartActionRecord record) {
+        return new MenuItem(
+            record.getMenuItemId(),
+            record.getRestaurantId(),
+            record.getItemName(),
+            record.getPrice(),
+            record.getCategory()
+        );
+    }
+
+    private void deleteLatestCartAction(MenuItem item) {
+        cartActionRepository.findTopByCustomerIdAndMenuItemIdOrderByIdDesc(DEFAULT_CUSTOMER_ID, menuItemId(item))
+            .ifPresent(cartActionRepository::delete);
+    }
+
+    private void deleteAllCartRecords(MenuItem item) {
+        cartItemRepository.deleteAll(cartItemRepository.findByCustomerIdAndMenuItemId(DEFAULT_CUSTOMER_ID, menuItemId(item)));
+    }
+
+    private void deleteAllCartActions(MenuItem item) {
+        cartActionRepository.deleteAll(cartActionRepository.findByCustomerIdAndMenuItemId(DEFAULT_CUSTOMER_ID, menuItemId(item)));
+    }
+
+    private Map<String, Object> cartResponse(String message) {
+        ensureCartActionHistory();
+        hydrateCartStackFromDatabase();
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("message", message);
+        response.put("items", activeCart.toList());
+        response.put("undoAvailable", cartActionRepository.countByCustomerId(DEFAULT_CUSTOMER_ID) > 0);
+        return response;
+    }
+
+    private String menuItemId(MenuItem item) {
+        if (item.getItemId() != null && !item.getItemId().isBlank()) {
+            return item.getItemId();
+        }
+
+        return item.getName();
+    }
+
+    private void saveActiveOrder(Order order, double subtotal, double deliveryFee, double platformFee, boolean active) {
+        ActiveOrderRecord record = activeOrderRepository.findById(order.orderId).orElseGet(ActiveOrderRecord::new);
+        record.setOrderId(order.orderId);
+        record.setCustomerId(order.customerId);
+        record.setRestaurantId(order.restaurantId);
+        record.setAssignedRiderId(order.assignedRiderId);
+        record.setDeliveryNodeId(order.deliveryNodeId);
+        record.setPickupNodeId(deliveryService.getRestaurantNodeForOrder(order));
+        record.setDropoffNodeId(deliveryService.getCustomerNodeForOrder(order));
+        record.setRiderNodeId(resolveRiderNodeId(order));
+        record.setStatus(order.status);
+        record.setTimestamp(order.timestamp);
+        record.setSubtotal(subtotal);
+        record.setDeliveryFee(deliveryFee);
+        record.setPlatformFee(platformFee);
+        record.setTotal(subtotal + deliveryFee + platformFee);
+        record.setActive(active);
+
+        try {
+            record.setItemsJson(objectMapper.writeValueAsString(order.cart));
+        } catch (JsonProcessingException error) {
+            record.setItemsJson("[]");
+        }
+
+        activeOrderRepository.save(record);
+    }
+
+    private String resolveRiderNodeId(Order order) {
+        RouteSummary route = deliveryService.getLatestRouteSummary();
+        if (route != null && order.orderId != null && order.orderId.equals(route.getOrderId())) {
+            GraphNode[] path = route.getPath();
+            if (path != null && path.length > 0 && path[0] != null) {
+                return path[0].nodeId;
+            }
+        }
+
+        User rider = deliveryService.getLatestAssignedRider();
+        if (rider != null && order.assignedRiderId != null && order.assignedRiderId.equals(rider.getUserId())) {
+            return rider.getCurrentNodeId();
+        }
+
+        return "";
+    }
+
 }
