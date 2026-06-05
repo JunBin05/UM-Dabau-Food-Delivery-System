@@ -13,6 +13,13 @@ const emptyRestaurantForm = {
 const categoryOptions = ["Cafe", "Malay", "Malay Snacks", "Chinese", "Western", "Mamak", "Middle Eastern", "Healthy", "Drinks", "Vegetarian", "Snacks"];
 const statusOptions = ["Open", "Closed"];
 
+function displayNodeId(nodeId = "") {
+  return nodeId
+    .replace(/^NODE_/, "")
+    .replace(/^WAYPOINT_/, "Waypoint ")
+    .replaceAll("_", " ");
+}
+
 export default function RestaurantManagement() {
   const [restaurantRows, setRestaurantRows] = useState([]);
   const [nodeOptions, setNodeOptions] = useState([]);
@@ -141,7 +148,7 @@ export default function RestaurantManagement() {
                 </div>
                 <dl className="detail-list">
                   <div><dt>ID</dt><dd>{restaurant.restaurantId}</dd></div>
-                  <div><dt>Node</dt><dd>{restaurant.nodeId}</dd></div>
+                  <div><dt>Node</dt><dd title={restaurant.nodeId}>{displayNodeId(restaurant.nodeId)}</dd></div>
                 </dl>
                 <div className="table-actions">
                   <button className="action-button edit" type="button" onClick={() => handleEdit(restaurant)}><span className="material-symbols-outlined">edit</span>Edit</button>

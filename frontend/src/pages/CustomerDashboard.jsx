@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchJson } from "../api/liveApi.js";
 
+const CUSTOMER_ID = "USR-001";
+
 const categoryIcons = {
   Malay: "rice_bowl",
   Chinese: "ramen_dining",
@@ -64,8 +66,23 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
   }, [home.categories]);
 
   useEffect(() => {
-    fetchJson("/live/customer/home")
-      .then(setHome)
+    Promise.all([
+      fetchJson("/live/customer/home"),
+      fetchJson("/live/users").catch(() => []),
+      fetchJson("/live/locations").catch(() => [])
+    ])
+      .then(([homeData, users, locations]) => {
+        const customer = Array.isArray(users) ? users.find((user) => user.userId === CUSTOMER_ID) : null;
+        const savedNodeId = customer?.currentNodeId || homeData.deliveryNodeId;
+        const savedLocation = Array.isArray(locations) ? locations.find((location) => location.nodeId === savedNodeId) : null;
+
+        setHome({
+          ...homeData,
+          customerName: customer?.fullName || homeData.customerName,
+          deliveryAddress: savedLocation?.name || homeData.deliveryAddress,
+          deliveryNodeId: savedNodeId
+        });
+      })
       .catch((error) => console.error("Failed to load customer home:", error));
   }, []);
 
@@ -76,7 +93,7 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
           <p className="eyebrow">UM-Dabau Food Delivery</p>
           <h2>Hi {home.customerName}, what would you like to eat?</h2>
           <p className="customer-hero-subtitle">Campus meals, drinks, and snacks delivered to your block.</p>
-          <button className="location-chip" type="button">
+          <button className="location-chip" type="button" onClick={() => onNavigate("cart")} title="Change delivery location">
             <span className="material-symbols-outlined">location_on</span>
             Deliver to: {home.deliveryAddress}
           </button>

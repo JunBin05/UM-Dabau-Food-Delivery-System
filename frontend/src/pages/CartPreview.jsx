@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { fetchJson, postJson } from "../api/liveApi.js";
+import { fetchJson, postJson, putJson } from "../api/liveApi.js";
+
+const CUSTOMER_ID = "USR-001";
 
 function distanceKm(pointA, pointB) {
   const earthRadiusKm = 6371;
@@ -20,18 +22,63 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
   const [locations, setLocations] = useState([]);
   const [locationMessage, setLocationMessage] = useState("");
   const [isLocating, setIsLocating] = useState(false);
+  const [isSavingLocation, setIsSavingLocation] = useState(false);
   const canUndo = undoAvailable || items.length > 0;
   const subtotal = useMemo(() => items.reduce((total, item) => total + item.price * item.qty, 0), [items]);
 
   useEffect(() => {
     onRefreshCart();
-    fetchJson("/live/customer/home")
-      .then((home) => setDelivery({ deliveryAddress: home.deliveryAddress, deliveryNodeId: home.deliveryNodeId, deliveryFee: home.deliveryFee, platformFee: home.platformFee }))
-      .catch((error) => console.error("Failed to load delivery point:", error));
-    fetchJson("/live/locations")
-      .then(setLocations)
-      .catch((error) => console.error("Failed to load delivery locations:", error));
+
+    Promise.all([
+      fetchJson("/live/customer/home").catch((error) => {
+        console.error("Failed to load delivery point:", error);
+        return null;
+      }),
+      fetchJson("/live/locations").catch((error) => {
+        console.error("Failed to load delivery locations:", error);
+        return [];
+      }),
+      fetchJson("/live/users").catch((error) => {
+        console.error("Failed to load saved customer location:", error);
+        return [];
+      })
+    ]).then(([home, loadedLocations, users]) => {
+      const customer = Array.isArray(users) ? users.find((user) => user.userId === CUSTOMER_ID) : null;
+      const savedNodeId = customer?.currentNodeId || home?.deliveryNodeId || "NODE_KK12_BLOCK_A";
+      const savedLocation = loadedLocations.find((location) => location.nodeId === savedNodeId);
+
+      setLocations(loadedLocations);
+      setDelivery({
+        deliveryAddress: savedLocation?.name || home?.deliveryAddress || savedNodeId,
+        deliveryNodeId: savedNodeId,
+        deliveryFee: home?.deliveryFee ?? 2.5,
+        platformFee: home?.platformFee ?? 0.8
+      });
+    });
   }, [onRefreshCart]);
+
+  function saveDeliveryNode(nodeId, location) {
+    return putJson("/live/customer/location", { deliveryNodeId: nodeId })
+      .catch((error) => {
+        console.warn("Primary delivery location endpoint failed, falling back to user update:", error);
+        return fetchJson("/live/users")
+          .then((users) => {
+            const customer = Array.isArray(users) ? users.find((user) => user.userId === CUSTOMER_ID) : null;
+            if (!customer) {
+              throw new Error("Customer user not found.");
+            }
+
+            return putJson(`/live/users/${CUSTOMER_ID}`, {
+              ...customer,
+              currentNodeId: nodeId
+            });
+          })
+          .then(() => ({
+            deliveryNodeId: nodeId,
+            deliveryAddress: location?.name || nodeId
+          }));
+      });
+  }
 
   function selectDeliveryNode(nodeId, sourceMessage = "") {
     const location = locations.find((entry) => entry.nodeId === nodeId);
@@ -41,7 +88,23 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
       deliveryNodeId: nodeId,
       deliveryAddress: location?.name || nodeId
     }));
-    setLocationMessage(sourceMessage);
+    setIsSavingLocation(true);
+    setLocationMessage(sourceMessage || "Saving delivery location...");
+
+    saveDeliveryNode(nodeId, location)
+      .then((savedLocation) => {
+        setDelivery((current) => ({
+          ...current,
+          deliveryNodeId: savedLocation.deliveryNodeId || nodeId,
+          deliveryAddress: savedLocation.deliveryAddress || location?.name || nodeId
+        }));
+        setLocationMessage(sourceMessage || "Delivery location saved.");
+      })
+      .catch((error) => {
+        console.error("Failed to save delivery location:", error);
+        setLocationMessage("Could not save delivery location. Please try again.");
+      })
+      .finally(() => setIsSavingLocation(false));
   }
 
   function useCurrentLocation() {
@@ -117,16 +180,17 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
           <strong>{delivery.deliveryAddress}</strong>
           <small>{delivery.deliveryNodeId}</small>
           <div className="delivery-location-controls">
-            <select value={delivery.deliveryNodeId} onChange={(event) => selectDeliveryNode(event.target.value)}>
+            <select value={delivery.deliveryNodeId} onChange={(event) => selectDeliveryNode(event.target.value)} disabled={isSavingLocation}>
               {locations.map((location) => (
                 <option value={location.nodeId} key={location.nodeId}>{location.name}</option>
               ))}
             </select>
-            <button className="secondary-button small-button" type="button" onClick={useCurrentLocation} disabled={isLocating}>
+            <button className="secondary-button small-button" type="button" onClick={useCurrentLocation} disabled={isLocating || isSavingLocation}>
               <span className="material-symbols-outlined">my_location</span>
               {isLocating ? "Locating" : "Use Current Location"}
             </button>
           </div>
+          {isSavingLocation && <small>Saving your delivery point...</small>}
           {locationMessage && <small>{locationMessage}</small>}
         </div>
       </section>

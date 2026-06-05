@@ -122,10 +122,13 @@ public class OperationsController {
     @GetMapping("/customer/home")
     public Map<String, Object> getCustomerHome() {
         List<MenuItem> menu = getMenuItemsFromDatabase();
+        User customer = userRepository.findById(DEFAULT_CUSTOMER_ID).orElse(null);
+        String deliveryNodeId = resolveCustomerDeliveryNodeId(customer);
+        Map<String, Object> deliveryLocation = graphLocation(deliveryNodeId);
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("customerName", "Aina Rahman");
-        payload.put("deliveryAddress", "KK12 Block A");
-        payload.put("deliveryNodeId", "NODE_KK12_BLOCK_A");
+        payload.put("customerName", customer == null ? "Customer" : customer.getFullName());
+        payload.put("deliveryAddress", deliveryLocation.get("name"));
+        payload.put("deliveryNodeId", deliveryNodeId);
         payload.put("restaurants", restaurantRepository.findAll());
         payload.put("recommendedItems", menu.stream().limit(6).toList());
         payload.put("categories", menu.stream().map(MenuItem::getCategory).distinct().toList());
@@ -134,6 +137,31 @@ public class OperationsController {
         payload.put("deliveryFee", 2.5);
         payload.put("platformFee", 0.8);
         return payload;
+    }
+
+    @PutMapping("/customer/location")
+    public ResponseEntity<Map<String, Object>> updateCustomerLocation(@RequestBody Map<String, String> request) {
+        String requestedNodeId = request.getOrDefault("deliveryNodeId", request.get("nodeId"));
+        String deliveryNodeId = normalizeKnownNodeId(requestedNodeId, "");
+
+        if (!hasText(deliveryNodeId)) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Unknown delivery location."));
+        }
+
+        User customer = userRepository.findById(DEFAULT_CUSTOMER_ID).orElseGet(() ->
+            new User(DEFAULT_CUSTOMER_ID, "Aina Rahman", "aina.rahman@student.um.edu.my", "Customer", "Active", false, deliveryNodeId)
+        );
+
+        customer.setCurrentNodeId(deliveryNodeId);
+        userRepository.save(customer);
+        deliveryService.hydrateRuntimeData();
+
+        Map<String, Object> location = graphLocation(deliveryNodeId);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("message", "Delivery location saved.");
+        payload.put("deliveryNodeId", deliveryNodeId);
+        payload.put("deliveryAddress", location.get("name"));
+        return ResponseEntity.ok(payload);
     }
 
     @GetMapping("/customer/tracking")
@@ -609,6 +637,10 @@ public class OperationsController {
         };
 
         return deliveryService.getCampusMap().getNodeById(resolvedNodeId) == null ? fallbackNodeId : resolvedNodeId;
+    }
+
+    private String resolveCustomerDeliveryNodeId(User customer) {
+        return normalizeKnownNodeId(customer == null ? null : customer.getCurrentNodeId(), "NODE_KK12_BLOCK_A");
     }
 
     private boolean hasText(String value) {

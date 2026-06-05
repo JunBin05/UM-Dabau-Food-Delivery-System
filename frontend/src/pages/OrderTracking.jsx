@@ -84,11 +84,15 @@ function getPhase(hasActiveOrder, hasRoute, driverIndex, pickupIndex, finalIndex
 }
 
 export default function OrderTracking({ onNavigate = () => {} }) {
+  const emptyTracking = { hasActiveOrder: false, order: {}, route: null, items: [], deliveryFee: 0, platformFee: 0, pickupNodeId: "", dropoffNodeId: "" };
   const [tracking, setTracking] = useState({ hasActiveOrder: false, order: {}, route: null, items: [], deliveryFee: 0, platformFee: 0, pickupNodeId: "", dropoffNodeId: "" });
   const [locations, setLocations] = useState([]);
   const [routeStartTime, setRouteStartTime] = useState(0);
   const [simulationNow, setSimulationNow] = useState(Date.now());
   const [completionMessage, setCompletionMessage] = useState("");
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [selectedRating, setSelectedRating] = useState(0);
+  const [isCompletingOrder, setIsCompletingOrder] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const order = tracking.order || {};
@@ -155,17 +159,26 @@ export default function OrderTracking({ onNavigate = () => {} }) {
   }
 
   function markOrderReceived() {
+    setIsCompletingOrder(true);
+    setCompletionMessage("");
     postJson("/orders/received")
       .then((result) => {
         if (route?.orderId) {
           window.localStorage.removeItem(trackingStorageKey(route.orderId));
         }
-        setCompletionMessage(result.message);
-        return loadTracking();
+        setTracking(emptyTracking);
+        setRouteStartTime(0);
+        setSimulationNow(Date.now());
+        setCompletionMessage(result.message || "Hope you enjoy your meal!");
+        setSelectedRating(0);
+        setShowCompletionModal(true);
       })
       .catch((error) => {
         console.error("Failed to complete delivery:", error);
         setCompletionMessage("Could not complete delivery. Please try again.");
+      })
+      .finally(() => {
+        setIsCompletingOrder(false);
       });
   }
 
@@ -301,14 +314,50 @@ export default function OrderTracking({ onNavigate = () => {} }) {
             <div className="total"><dt>Total</dt><dd>RM {total.toFixed(2)}</dd></div>
           </dl>
           {phase.activeStep === 4 && route && (
-            <button className="primary-button full" type="button" onClick={markOrderReceived}>
+            <button className="primary-button full" type="button" onClick={markOrderReceived} disabled={isCompletingOrder}>
               <span className="material-symbols-outlined">task_alt</span>
-              Order Received
+              {isCompletingOrder ? "Completing..." : "Order Received"}
             </button>
           )}
           {completionMessage && <p className="muted">{completionMessage}</p>}
         </article>
       </section>
+      )}
+
+      {showCompletionModal && (
+        <div className="meal-completion-overlay" role="dialog" aria-modal="true" aria-labelledby="meal-completion-title">
+          <article className="meal-completion-modal">
+            <div className="meal-completion-icon">
+              <span className="material-symbols-outlined">restaurant</span>
+            </div>
+            <p className="eyebrow">Delivery completed</p>
+            <h3 id="meal-completion-title">Hope you enjoy your meal!</h3>
+            <p>Your order has been cleared from live tracking. Rate your delivery experience.</p>
+
+            <div className="meal-rating-row" aria-label="Rate your delivery">
+              {[1, 2, 3, 4, 5].map((rating) => (
+                <button
+                  aria-label={`${rating} star${rating > 1 ? "s" : ""}`}
+                  className={rating <= selectedRating ? "selected" : ""}
+                  key={rating}
+                  onClick={() => setSelectedRating(rating)}
+                  type="button"
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            <div className="meal-completion-actions">
+              <button className="secondary-button" type="button" onClick={() => setShowCompletionModal(false)}>
+                Close
+              </button>
+              <button className="primary-button" type="button" onClick={() => onNavigate("browse-menu")}>
+                Browse Menu
+              </button>
+            </div>
+          </article>
+        </div>
       )}
     </div>
   );

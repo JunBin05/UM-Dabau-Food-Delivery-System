@@ -28,6 +28,7 @@ import com.umdabau.models.User;
 import com.umdabau.repository.ActiveOrderRepository;
 import com.umdabau.repository.CartActionRepository;
 import com.umdabau.repository.CartItemRepository;
+import com.umdabau.repository.UserRepository;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -55,6 +56,9 @@ public class OrderController {
 
     @Autowired
     private CartActionRepository cartActionRepository;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @PostMapping("/cart/add")
     public ResponseEntity<Map<String, Object>> addToCart(@RequestBody MenuItem item) {
@@ -158,7 +162,7 @@ public class OrderController {
         }
 
         if (newOrder.deliveryNodeId == null || newOrder.deliveryNodeId.isBlank()) {
-            newOrder.deliveryNodeId = "NODE_KK12_BLOCK_A";
+            newOrder.deliveryNodeId = savedCustomerDeliveryNodeId();
         }
         
         // Put the order into the globally shared queue!
@@ -201,21 +205,34 @@ public class OrderController {
     @PostMapping("/received")
     public ResponseEntity<Map<String, Object>> markOrderReceived() {
         Order completedOrder = deliveryService.completeLatestDelivery();
+        ActiveOrderRecord completedRecord = null;
 
         if (completedOrder == null) {
-            return ResponseEntity.badRequest().body(Map.of("message", "No active delivery to complete."));
+            completedRecord = activeOrderRepository
+                .findTopByCustomerIdAndActiveTrueOrderByTimestampDesc(DEFAULT_CUSTOMER_ID)
+                .orElseGet(() -> activeOrderRepository.findTopByActiveTrueOrderByTimestampDesc().orElse(null));
+
+            if (completedRecord == null) {
+                return ResponseEntity.badRequest().body(Map.of("message", "No active delivery to complete."));
+            }
+
+            completedRecord.setStatus("DELIVERED");
+            completedRecord.setActive(false);
+            activeOrderRepository.save(completedRecord);
+        } else {
+            completedRecord = activeOrderRepository.findById(completedOrder.orderId).orElse(null);
+            if (completedRecord != null) {
+                completedRecord.setStatus("DELIVERED");
+                completedRecord.setActive(false);
+                activeOrderRepository.save(completedRecord);
+            }
         }
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("message", "Order received. Delivery completed.");
-        response.put("orderId", completedOrder.orderId);
-        response.put("status", completedOrder.status);
+        response.put("orderId", completedOrder != null ? completedOrder.orderId : completedRecord.getOrderId());
+        response.put("status", "DELIVERED");
         response.put("availableRiders", deliveryService.getRiderHeap().getSize());
-        activeOrderRepository.findById(completedOrder.orderId).ifPresent((record) -> {
-            record.setStatus("DELIVERED");
-            record.setActive(false);
-            activeOrderRepository.save(record);
-        });
         return ResponseEntity.ok(response);
     }
 
@@ -354,6 +371,13 @@ public class OrderController {
         }
 
         return item.getName();
+    }
+
+    private String savedCustomerDeliveryNodeId() {
+        return userRepository.findById(DEFAULT_CUSTOMER_ID)
+            .map(User::getCurrentNodeId)
+            .filter((nodeId) -> nodeId != null && !nodeId.isBlank())
+            .orElse("NODE_KK12_BLOCK_A");
     }
 
     private void saveActiveOrder(Order order, double subtotal, double deliveryFee, double platformFee, boolean active) {
