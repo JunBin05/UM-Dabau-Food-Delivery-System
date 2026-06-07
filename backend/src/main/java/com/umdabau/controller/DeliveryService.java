@@ -1,4 +1,4 @@
-package com.umdabau.controller; // or package service; if you made a new folder
+package com.umdabau.controller;
 
 import java.util.ArrayList;
 import java.util.List;

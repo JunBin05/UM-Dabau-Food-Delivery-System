@@ -39,8 +39,8 @@ import com.umdabau.repository.UserRepository;
 )
 public class OrderController {
     private static final String DEFAULT_CUSTOMER_ID = "USR-001";
-    private static final double DELIVERY_FEE = 2.5;
-    private static final double PLATFORM_FEE = 0.8;
+    private static final double DELIVERY_FEE = 0;
+    private static final double PLATFORM_FEE = 0;
 
     private final CartStack activeCart = new CartStack();
     private final ObjectMapper objectMapper = new ObjectMapper();
