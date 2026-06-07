@@ -6,6 +6,7 @@ node_modules/
 *.jar.original
 
 # Local runtime data and environment files
+data/
 backend/data/
 backend/data_old_test*/
 backend/data_backup_seed_test*/
