@@ -71,14 +71,22 @@ public class OrderController {
 
     @GetMapping("/cart")
     public ResponseEntity<List<MenuItem>> getCartItems() {
-        ensureCartActionHistory();
-        hydrateCartStackFromDatabase();
+        // SMART HYDRATION: Only rebuild if the RAM stack is completely empty.
+        if (activeCart.isEmpty() && cartItemRepository.countByCustomerId(DEFAULT_CUSTOMER_ID) > 0) {
+            ensureCartActionHistory();
+            // IMPORTANT: Use Actions, not Database, so the Stack maintains perfect chronological order for Undo!
+            hydrateCartStackFromActions(); 
+        }
         return ResponseEntity.ok(activeCart.toList());
     }
 
     @GetMapping("/cart/count")
     public ResponseEntity<Integer> getCartCount() {
-        hydrateCartStackFromDatabase();
+        // SMART HYDRATION check here too
+        if (activeCart.isEmpty() && cartItemRepository.countByCustomerId(DEFAULT_CUSTOMER_ID) > 0) {
+            ensureCartActionHistory();
+            hydrateCartStackFromActions();
+        }
         return ResponseEntity.ok(activeCart.getSize());
     }
 
@@ -90,28 +98,34 @@ public class OrderController {
 
     @PostMapping("/cart/undo")
     public ResponseEntity<Map<String, Object>> undoLastCartAction() {
-        hydrateCartStackFromActions();
-        MenuItem removedItem = activeCart.pop();
-        CartActionRecord latestAction = cartActionRepository.findTopByCustomerIdOrderByIdDesc(DEFAULT_CUSTOMER_ID).orElse(null);
 
-        if (removedItem == null || latestAction == null) {
+        // 1. STACK FIRST: Pop the item instantly in O(1) time.
+        MenuItem removedItem = activeCart.pop();
+
+        if (removedItem == null) {
             return ResponseEntity.ok(cartResponse("No cart action to undo."));
         }
 
-        cartActionRepository.delete(latestAction);
-        decrementCartItem(toMenuItem(latestAction));
+        // 2. DATABASE SECOND: Now that the stack is updated, clean up the database in the background.
+        CartActionRecord latestAction = cartActionRepository.findTopByCustomerIdOrderByIdDesc(DEFAULT_CUSTOMER_ID).orElse(null);
+        if (latestAction != null) {
+            cartActionRepository.delete(latestAction);
+        }
+        decrementCartItem(removedItem);
+        
         return ResponseEntity.ok(cartResponse("Last cart action undone."));
     }
 
     @PostMapping("/cart/remove")
     public ResponseEntity<MenuItem> removeOneCartItem(@RequestBody MenuItem item) {
-        hydrateCartStackFromDatabase();
+        // 1. STACK FIRST
         MenuItem removedItem = activeCart.removeOne(item);
 
         if (removedItem == null) {
             return ResponseEntity.notFound().build();
         }
 
+        // 2. DATABASE SECOND
         decrementCartItem(removedItem);
         deleteLatestCartAction(removedItem);
         return ResponseEntity.ok(removedItem);
@@ -119,13 +133,14 @@ public class OrderController {
 
     @PostMapping("/cart/remove-all")
     public ResponseEntity<String> removeAllCartItems(@RequestBody MenuItem item) {
-        hydrateCartStackFromDatabase();
+        // 1. STACK FIRST
         int removedCount = activeCart.removeAll(item);
 
         if (removedCount == 0) {
             return ResponseEntity.notFound().build();
         }
 
+        // 2. DATABASE SECOND
         deleteAllCartRecords(item);
         deleteAllCartActions(item);
         return ResponseEntity.ok("Removed " + removedCount + " item(s).");
@@ -133,8 +148,6 @@ public class OrderController {
 
     @PostMapping("/checkout")
     public ResponseEntity<Map<String, Object>> checkoutOrder(@RequestBody Order newOrder) {
-        hydrateCartStackFromDatabase();
-
         // 1. ADD THIS CHECK: Don't allow checking out an empty cart!
         if (activeCart.isEmpty()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Cannot checkout: Cart is empty."));
@@ -234,16 +247,6 @@ public class OrderController {
         response.put("status", "DELIVERED");
         response.put("availableRiders", deliveryService.getRiderHeap().getSize());
         return ResponseEntity.ok(response);
-    }
-
-    private void hydrateCartStackFromDatabase() {
-        activeCart.clear();
-        for (CartItemRecord record : cartItemRepository.findByCustomerIdOrderByIdAsc(DEFAULT_CUSTOMER_ID)) {
-            int quantity = Math.max(record.getQuantity(), 1);
-            for (int count = 0; count < quantity; count++) {
-                activeCart.push(toMenuItem(record));
-            }
-        }
     }
 
     private void hydrateCartStackFromActions() {
@@ -356,12 +359,16 @@ public class OrderController {
     }
 
     private Map<String, Object> cartResponse(String message) {
-        ensureCartActionHistory();
-        hydrateCartStackFromDatabase();
+        
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("message", message);
-        response.put("items", activeCart.toList());
-        response.put("undoAvailable", cartActionRepository.countByCustomerId(DEFAULT_CUSTOMER_ID) > 0);
+        
+        // 1. Trust the Stack! Read directly from RAM.
+        response.put("items", activeCart.toList()); 
+        
+        // 2. We can even check if Undo is available just by asking the Stack if it's empty!
+        response.put("undoAvailable", !activeCart.isEmpty()); 
+        
         return response;
     }
 

@@ -15,4 +15,5 @@ public interface CartItemRepository extends JpaRepository<CartItemRecord, Long> 
     Optional<CartItemRecord> findFirstByCustomerIdAndMenuItemIdOrderByIdAsc(String customerId, String menuItemId);
 
     Optional<CartItemRecord> findTopByCustomerIdOrderByIdDesc(String customerId);
+    long countByCustomerId(String customerId);
 }
