@@ -37,7 +37,7 @@ function ImageTile({ src, category, label, className = "" }) {
   );
 }
 
-export default function BrowseMenu({ initialCategory = "All Items", cartItems = [], onCartAdd = () => {}, onCartRemove = () => {}, onNavigate = () => {}, cartCount = 0 }) {
+export default function BrowseMenu({ initialCategory = "All Items", initialSearch = "", initialRestaurantId = "", cartItems = [], onCartAdd = () => {}, onCartRemove = () => {}, onNavigate = () => {}, cartCount = 0 }) {
   const [categories, setCategories] = useState(["All Items"]);
   const [restaurants, setRestaurants] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState(initialCategory);
@@ -56,14 +56,15 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
         setLiveMenuData(menu);
         setRestaurants(liveRestaurants);
         setCategories(["All Items", ...menu.map((item) => item.category).filter(Boolean).filter((category, index, list) => list.indexOf(category) === index), "More Filters"]);
+        setSelectedRestaurant(initialRestaurantId ? liveRestaurants.find((restaurant) => restaurant.restaurantId === initialRestaurantId) || null : null);
       })
       .catch((error) => console.error("Failed to load browse menu data:", error));
 
     setSelectedCategory(initialCategory);
     setSelectedRestaurant(null);
-    setSearchTerm("");
+    setSearchTerm(initialSearch);
     setLastAdded("");
-  }, [initialCategory]);
+  }, [initialCategory, initialRestaurantId, initialSearch]);
 
   function handleCategoryChange(category) {
     setSelectedCategory(category);
@@ -104,7 +105,8 @@ export default function BrowseMenu({ initialCategory = "All Items", cartItems = 
       const restaurantItems = liveMenuData.filter((item) => item.restaurantId === restaurant.restaurantId);
       const categoryList = restaurantItems.map((item) => item.category);
       const matchesCategory = selectedCategory === "All Items" || selectedCategory === "More Filters" || categoryList.includes(selectedCategory);
-      const searchable = `${restaurantName(restaurant)} ${restaurant.category} ${restaurant.campusLocation} ${restaurant.nodeId}`.toLowerCase();
+      const menuSearchable = restaurantItems.map((item) => `${item.name} ${item.category}`).join(" ");
+      const searchable = `${restaurantName(restaurant)} ${restaurant.category} ${restaurant.campusLocation} ${restaurant.nodeId} ${menuSearchable}`.toLowerCase();
       return matchesCategory && (!normalizedSearch || searchable.includes(normalizedSearch));
     });
   }, [liveMenuData, restaurants, searchTerm, selectedCategory]);

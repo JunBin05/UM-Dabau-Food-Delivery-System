@@ -55,6 +55,9 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
     categories: [],
     activeOrder: null
   });
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchError, setSearchError] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
   const cartCount = cartItems.reduce((total, item) => total + item.qty, 0);
   const cartTotal = cartItems.reduce((total, item) => total + item.qty * item.price, 0);
   const activeOrder = home.activeOrder || {};
@@ -85,6 +88,42 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
       })
       .catch((error) => console.error("Failed to load customer home:", error));
   }, []);
+
+  function handleMenuSearch(event) {
+    event.preventDefault();
+    const query = searchTerm.trim();
+
+    if (!query) {
+      setSearchError("Enter a menu item name to search.");
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError("");
+
+    fetchJson(`/menu/search?name=${encodeURIComponent(query)}`)
+      .then((results) => {
+        const matchedItems = Array.isArray(results) ? results : [];
+
+        if (matchedItems.length === 0) {
+          setSearchError("No menu item found. Try another food name.");
+          return;
+        }
+
+        const firstMatch = matchedItems[0];
+        onNavigate({
+          page: "browse-menu",
+          category: "All Items",
+          search: query,
+          restaurantId: firstMatch.restaurantId || ""
+        });
+      })
+      .catch((error) => {
+        console.error("Failed to search menu by name:", error);
+        setSearchError("Could not search menu. Please try again.");
+      })
+      .finally(() => setIsSearching(false));
+  }
 
   return (
     <div className="page-stack customer-app-home">
@@ -125,10 +164,21 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
         </div>
       </section>
 
-      <form className="app-search-bar" onSubmit={(event) => event.preventDefault()}>
+      <form className="app-search-bar" onSubmit={handleMenuSearch}>
         <span className="material-symbols-outlined">search</span>
-        <input placeholder="Search nasi lemak, coffee, chicken rice..." />
+        <input
+          value={searchTerm}
+          onChange={(event) => {
+            setSearchTerm(event.target.value);
+            setSearchError("");
+          }}
+          placeholder="Search nasi lemak, coffee, chicken rice..."
+        />
+        <button className="primary-button" type="submit" disabled={isSearching}>
+          {isSearching ? "Searching..." : "Search"}
+        </button>
       </form>
+      {searchError && <small className="search-feedback">{searchError}</small>}
 
       <section className="customer-section">
         <div className="section-heading">

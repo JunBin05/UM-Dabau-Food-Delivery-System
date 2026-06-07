@@ -4338,7 +4338,7 @@ tbody tr:hover {
 .app-search-bar {
   min-height: 58px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 0 18px;
@@ -4356,6 +4356,19 @@ tbody tr:hover {
   width: 100%;
   border: 0;
   outline: 0;
+}
+
+.app-search-bar .primary-button {
+  min-height: 40px;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+
+.search-feedback {
+  display: block;
+  margin: -8px 0 0 18px;
+  color: var(--danger);
+  font-weight: 700;
 }
 
 .app-category-row {
@@ -4998,6 +5011,17 @@ tbody tr:hover {
 
   .customer-home-hero h2 {
     font-size: 28px;
+  }
+
+  .app-search-bar {
+    grid-template-columns: auto minmax(0, 1fr);
+    border-radius: 24px;
+    padding: 12px;
+  }
+
+  .app-search-bar .primary-button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
 
   .app-category-row {

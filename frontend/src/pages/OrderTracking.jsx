@@ -87,6 +87,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
   const emptyTracking = { hasActiveOrder: false, order: {}, route: null, items: [], deliveryFee: 0, platformFee: 0, pickupNodeId: "", dropoffNodeId: "" };
   const [tracking, setTracking] = useState({ hasActiveOrder: false, order: {}, route: null, items: [], deliveryFee: 0, platformFee: 0, pickupNodeId: "", dropoffNodeId: "" });
   const [locations, setLocations] = useState([]);
+  const [riderLocations, setRiderLocations] = useState([]);
   const [routeStartTime, setRouteStartTime] = useState(0);
   const [simulationNow, setSimulationNow] = useState(Date.now());
   const [completionMessage, setCompletionMessage] = useState("");
@@ -126,7 +127,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
         ? hasRoute ? "" : "Awaiting dispatch"
         : "No active order right now";
   const mapEmptyMessage = isLoading
-    ? "Fetching your latest order and campus locations."
+    ? "Fetching your latest order and rider locations."
     : loadError
       ? loadError
       : hasActiveOrder
@@ -150,11 +151,31 @@ export default function OrderTracking({ onNavigate = () => {} }) {
       .finally(() => setIsLoading(false));
   }
 
-  function loadLocations() {
-    return fetchJson("/live/locations")
-      .then(setLocations)
+  function loadMapData() {
+    return Promise.all([
+      fetchJson("/live/locations"),
+      fetchJson("/live/users").catch(() => [])
+    ])
+      .then(([campusLocations, users]) => {
+        const safeLocations = Array.isArray(campusLocations) ? campusLocations : [];
+        setLocations(safeLocations);
+
+        const locationsByNodeId = new Map(safeLocations.map((location) => [location.nodeId, location]));
+        const safeUsers = Array.isArray(users) ? users : [];
+        setRiderLocations(safeUsers
+          .filter((user) => user.role?.toLowerCase() === "rider" && user.currentNodeId)
+          .map((rider) => {
+            const node = locationsByNodeId.get(rider.currentNodeId);
+            return {
+              ...rider,
+              nodeName: node?.name || rider.currentNodeId,
+              latitude: node?.latitude || 0,
+              longitude: node?.longitude || 0
+            };
+          }));
+      })
       .catch((error) => {
-        console.error("Failed to load campus locations:", error);
+        console.error("Failed to load rider map data:", error);
       });
   }
 
@@ -184,7 +205,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
 
   useEffect(() => {
     loadTracking();
-    loadLocations();
+    loadMapData();
   }, []);
 
   useEffect(() => {
@@ -222,7 +243,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
         <div className="tracking-map-toolbar">
           <div>
             <strong>{hasActiveOrder ? `Order ${order.id || tracking.orderId || "pending"}` : "UM campus delivery map"}</strong>
-            <span>{hasActiveOrder ? hasRoute ? `${Number(tracking.distanceKm || route.totalDistanceKm).toFixed(2)} km route - ${Number(tracking.eta || route.estimatedTimeMinutes).toFixed(0)} min ETA` : "Waiting for rider assignment" : "Known campus locations from backend"}</span>
+            <span>{hasActiveOrder ? hasRoute ? `${Number(tracking.distanceKm || route.totalDistanceKm).toFixed(2)} km route - ${Number(tracking.eta || route.estimatedTimeMinutes).toFixed(0)} min ETA` : "Waiting for rider assignment" : `${riderLocations.length} rider location(s) from backend`}</span>
           </div>
           {hasActiveOrder ? (
             <button className="primary-button" type="button" onClick={() => onNavigate("map-tracker")}>
@@ -241,6 +262,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
             emptyAction={!hasActiveOrder && !isLoading && !loadError ? <button className="primary-button" type="button" onClick={() => onNavigate("browse-menu")}>Browse Menu</button> : null}
             emptyMessage={mapEmptyMessage}
             emptyTitle={mapEmptyTitle}
+            activeRiders={!hasActiveOrder ? riderLocations : []}
             locations={locations}
             pickupNode={tracking.restaurantNode}
             pickupNodeId={tracking.pickupNodeId}
@@ -248,7 +270,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
             riderNode={tracking.riderNode}
             routeDriverIndex={driverIndex}
             routeSummary={hasActiveOrder ? route : null}
-            showLocationsWhenNoRoute={!hasActiveOrder}
+            showLocationsWhenNoRoute={false}
           />
         </div>
       </section>

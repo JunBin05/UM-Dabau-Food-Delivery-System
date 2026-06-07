@@ -39,10 +39,20 @@ function getValidBrowseCategory(category) {
   return browseCategories.includes(category) ? category : "All Items";
 }
 
-function updateBrowseCategoryQuery(category) {
-  const nextUrl = category && category !== "All Items"
-    ? `${window.location.pathname}?category=${encodeURIComponent(category)}`
-    : window.location.pathname;
+function updateBrowseQuery(category, search = "") {
+  const params = new URLSearchParams();
+  const normalizedSearch = search.trim();
+
+  if (category && category !== "All Items") {
+    params.set("category", category);
+  }
+
+  if (normalizedSearch) {
+    params.set("search", normalizedSearch);
+  }
+
+  const queryString = params.toString();
+  const nextUrl = queryString ? `${window.location.pathname}?${queryString}` : window.location.pathname;
   window.history.replaceState(null, "", nextUrl);
 }
 
@@ -94,6 +104,8 @@ export default function App() {
   const [role, setRole] = usePersistentState("um-dabau-role", "");
   const [currentPage, setCurrentPage] = usePersistentState("um-dabau-page", "customer-dashboard");
   const [browseCategory, setBrowseCategory] = useState(() => getValidBrowseCategory(new URLSearchParams(window.location.search).get("category")));
+  const [browseSearchTerm, setBrowseSearchTerm] = useState(() => new URLSearchParams(window.location.search).get("search") || "");
+  const [browseRestaurantId, setBrowseRestaurantId] = useState("");
   const [cartItems, setCartItems] = useState([]);
   const [isUndoAvailable, setIsUndoAvailable] = useState(false);
   const [isCartLoading, setIsCartLoading] = useState(false);
@@ -138,8 +150,11 @@ export default function App() {
     if (typeof nextPage === "object" && nextPage !== null) {
       setCurrentPage(nextPage.page);
       const nextCategory = getValidBrowseCategory(nextPage.category);
+      const nextSearch = nextPage.search || "";
       setBrowseCategory(nextCategory);
-      updateBrowseCategoryQuery(nextPage.page === "browse-menu" ? nextCategory : "All Items");
+      setBrowseSearchTerm(nextPage.page === "browse-menu" ? nextSearch : "");
+      setBrowseRestaurantId(nextPage.page === "browse-menu" ? nextPage.restaurantId || "" : "");
+      updateBrowseQuery(nextPage.page === "browse-menu" ? nextCategory : "All Items", nextPage.page === "browse-menu" ? nextSearch : "");
       return;
     }
 
@@ -147,9 +162,13 @@ export default function App() {
 
     if (nextPage === "browse-menu") {
       setBrowseCategory("All Items");
-      updateBrowseCategoryQuery("All Items");
+      setBrowseSearchTerm("");
+      setBrowseRestaurantId("");
+      updateBrowseQuery("All Items");
     } else {
-      updateBrowseCategoryQuery("All Items");
+      setBrowseSearchTerm("");
+      setBrowseRestaurantId("");
+      updateBrowseQuery("All Items");
     }
   }
 
@@ -335,17 +354,17 @@ export default function App() {
 
   return (
     <AppShell role={activeRole} currentPage={safePage} onNavigate={navigate} onLogout={logout}>
-      {renderPage(safePage, activeRole, navigate, selectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isUndoAvailable, isCartLoading, browseCategory)}
+      {renderPage(safePage, activeRole, navigate, selectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isUndoAvailable, isCartLoading, browseCategory, browseSearchTerm, browseRestaurantId)}
     </AppShell>
   );
 }
 
-function renderPage(page, role, onNavigate, onSelectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isUndoAvailable, isCartLoading, browseCategory) {
+function renderPage(page, role, onNavigate, onSelectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isUndoAvailable, isCartLoading, browseCategory, browseSearchTerm, browseRestaurantId) {
   switch (page) {
     case "customer-dashboard":
       return <CustomerDashboard onNavigate={onNavigate} cartItems={cartItems} />;
     case "browse-menu":
-      return <BrowseMenu initialCategory={browseCategory} cartItems={cartItems} onCartAdd={addCartItem} onCartRemove={removeCartItem} onNavigate={onNavigate} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
+      return <BrowseMenu initialCategory={browseCategory} initialSearch={browseSearchTerm} initialRestaurantId={browseRestaurantId} cartItems={cartItems} onCartAdd={addCartItem} onCartRemove={removeCartItem} onNavigate={onNavigate} cartCount={cartItems.reduce((total, item) => total + item.qty, 0)} />;
     case "cart":
       return <CartPreview items={cartItems} isLoading={isCartLoading} undoAvailable={isUndoAvailable} onRefreshCart={refreshCartItems} onUndoLastCartItem={undoLastCartItem} onAddItem={addCartItem} onRemoveItem={removeCartItem} onRemoveAllItem={removeAllCartItems} onNavigate={onNavigate} />;
     case "order-tracking":

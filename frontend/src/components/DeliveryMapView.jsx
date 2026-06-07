@@ -106,7 +106,8 @@ export default function DeliveryMapView({
           <Marker key={rider.userId} icon={markerIcons.driver} position={positionFor(rider)}>
             <Popup>
               <strong>{rider.fullName}</strong><br />
-              <small>{rider.currentNodeId} - active in RiderHeap</small>
+              <small>{rider.nodeName || rider.currentNodeId}</small><br />
+              <small>{rider.available ? "Available rider" : "Rider location"}</small>
             </Popup>
           </Marker>
         ))}
