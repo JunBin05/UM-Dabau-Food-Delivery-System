@@ -276,7 +276,7 @@ public class OperationsController {
 
     @GetMapping("/users/{userId}")
     public ResponseEntity<User> getUserById(@PathVariable String userId) {
-        UserHashMap userLookup = new UserHashMap(16);
+        UserHashMap userLookup = new UserHashMap();
         for (User user : userRepository.findAll()) {
             userLookup.put(user.getUserId(), user);
         }
