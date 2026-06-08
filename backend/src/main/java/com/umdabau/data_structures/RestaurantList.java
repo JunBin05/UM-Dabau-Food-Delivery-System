@@ -10,6 +10,9 @@ public class RestaurantList {
     private RestaurantNode tail;
     private int size;
 
+    // 🌟 THE FAST O(1) WRAPPER INDEX
+    private RestaurantHashMap restaurantIndex;
+
     private static class RestaurantNode {
         private Restaurant data;
         private RestaurantNode next;
@@ -24,15 +27,17 @@ public class RestaurantList {
         head = null;
         tail = null;
         size = 0;
+        restaurantIndex = new RestaurantHashMap(); // Initialize the wrapper
     }
 
-    // Add at the end using tail: O(1), after duplicate ID checking: O(n)
+    // Add at the end using tail: O(1), after duplicate ID checking: O(1)
     public boolean addRestaurant(Restaurant restaurant) {
         if (restaurant == null || restaurant.getRestaurantId() == null) {
             return false;
         }
 
-        if (findRestaurantById(restaurant.getRestaurantId()) != null) {
+        // 🌟 FAST DUPLICATE CHECK USING HASHMAP: O(1)
+        if (restaurantIndex.contains(restaurant.getRestaurantId())) {
             return false;
         }
 
@@ -47,28 +52,23 @@ public class RestaurantList {
         }
 
         size++;
+        
+        // 🌟 ADD TO THE HASHMAP INDEX FOR FUTURE FAST RETRIEVAL
+        restaurantIndex.put(restaurant.getRestaurantId(), restaurant);
         return true;
     }
 
-    // Find/search by ID: O(n)
+    // Find/search by ID: O(1)
     public Restaurant findRestaurantById(String restaurantId) {
         if (restaurantId == null) {
             return null;
         }
 
-        RestaurantNode current = head;
-
-        while (current != null) {
-            if (restaurantId.equals(current.data.getRestaurantId())) {
-                return current.data;
-            }
-            current = current.next;
-        }
-
-        return null;
+        // 🌟 OPTIMIZED RETRIEVAL: Instant jump, no while loops!
+        return restaurantIndex.get(restaurantId);
     }
 
-    // Update by ID: O(n)
+    // Update by ID: O(n) for Linked List, O(1) to map
     public boolean updateRestaurant(Restaurant updatedRestaurant) {
         if (updatedRestaurant == null || updatedRestaurant.getRestaurantId() == null) {
             return false;
@@ -79,6 +79,9 @@ public class RestaurantList {
         while (current != null) {
             if (updatedRestaurant.getRestaurantId().equals(current.data.getRestaurantId())) {
                 current.data = updatedRestaurant;
+                
+                // 🌟 UPDATE THE HASHMAP AS WELL
+                restaurantIndex.put(updatedRestaurant.getRestaurantId(), updatedRestaurant);
                 return true;
             }
             current = current.next;
@@ -109,6 +112,9 @@ public class RestaurantList {
                 }
 
                 size--;
+                
+                // 🌟 REMOVE FROM HASHMAP INDEX
+                restaurantIndex.remove(restaurantId);
                 return true;
             }
 
@@ -172,5 +178,8 @@ public class RestaurantList {
         head = null;
         tail = null;
         size = 0;
+        
+        // 🌟 CLEAR THE HASHMAP TOO
+        restaurantIndex = new RestaurantHashMap();
     }
 }

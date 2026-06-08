@@ -2,13 +2,15 @@ package com.umdabau.data_structures;
 
 import java.util.AbstractList;
 import java.util.List;
-
 import com.umdabau.models.User;
 
 public class UserList {
     private UserNode head;
     private UserNode tail;
     private int size;
+
+    // 🌟 FIX 1: The HashMap Index belongs to the LIST, not individual nodes!
+    private UserHashMap userIndex;
 
     private static class UserNode {
         private User data;
@@ -24,16 +26,19 @@ public class UserList {
         head = null;
         tail = null;
         size = 0;
+        // 🌟 FIX 2: Initialize the index here for the entire list scope
+        userIndex = new UserHashMap(); 
     }
 
-    // Add at the end using tail: O(1), after duplicate ID checking: O(n)
+    // Add at the end using tail: O(1), after duplicate ID checking: O(1)
     public boolean addUser(User user) {
         if (user == null || user.getUserId() == null) {
             return false;
         }
 
-        if (findUserById(user.getUserId()) != null) {
-            return false;
+        // 🌟 NOW CORRECTLY CHECKS THE WHOLE LIST INDEX IN O(1) CONSTANT TIME
+        if (userIndex.contains(user.getUserId())) {
+            return false; 
         }
 
         UserNode newNode = new UserNode(user);
@@ -46,29 +51,22 @@ public class UserList {
             tail = newNode;
         }
 
+        // 🌟 ADD TO HASHMAP INDEX FOR FUTURE FAST RETRIEVAL
+        userIndex.put(user.getUserId(), user);
         size++;
         return true;
     }
 
-    // Find/search by ID: O(n)
+    // 🌟 OPTIMIZED RETRIEVAL: O(1) instead of O(n) loop
     public User findUserById(String userId) {
         if (userId == null) {
             return null;
         }
-
-        UserNode current = head;
-
-        while (current != null) {
-            if (userId.equals(current.data.getUserId())) {
-                return current.data;
-            }
-            current = current.next;
-        }
-
-        return null;
+        // Direct O(1) point-to-point retrieval!
+        return userIndex.get(userId);
     }
 
-    // Update by ID: O(n)
+    // Update by ID: O(n) for Linked List structure traversal
     public boolean updateUser(User updatedUser) {
         if (updatedUser == null || updatedUser.getUserId() == null) {
             return false;
@@ -79,6 +77,9 @@ public class UserList {
         while (current != null) {
             if (updatedUser.getUserId().equals(current.data.getUserId())) {
                 current.data = updatedUser;
+                
+                // 🌟 FIX 3: Keep the HashMap index updated with the new object reference
+                userIndex.put(updatedUser.getUserId(), updatedUser);
                 return true;
             }
             current = current.next;
@@ -109,6 +110,9 @@ public class UserList {
                 }
 
                 size--;
+                
+                // 🌟 REMOVE FROM HASHMAP INDEX SO IT DOES NOT HOLD DEAD DATA
+                userIndex.remove(userId);
                 return true;
             }
 
@@ -172,5 +176,8 @@ public class UserList {
         head = null;
         tail = null;
         size = 0;
+        
+        // 🌟 FIX 4: Reinitialize the HashMap so it is completely wiped clear too
+        userIndex = new UserHashMap();
     }
 }
