@@ -135,7 +135,7 @@ export default function App() {
       .then(([items, undoState]) => {
         const normalizedItems = normalizeCartItems(items);
         setCartItems(normalizedItems);
-        setIsUndoAvailable(Boolean(undoState?.undoAvailable) || normalizedItems.length > 0);
+        setIsUndoAvailable(Boolean(undoState?.undoAvailable));
       })
       .catch((error) => {
         console.error("Failed to fetch cart items:", error);

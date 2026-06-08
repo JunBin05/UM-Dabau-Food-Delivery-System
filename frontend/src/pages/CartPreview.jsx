@@ -18,12 +18,12 @@ function distanceKm(pointA, pointB) {
 
 export default function CartPreview({ items = [], isLoading = false, undoAvailable = false, onRefreshCart = () => {}, onUndoLastCartItem = () => {}, onAddItem = () => {}, onRemoveItem = () => {}, onRemoveAllItem = () => {}, onNavigate = () => {} }) {
   const [checkoutMessage, setCheckoutMessage] = useState("");
-  const [delivery, setDelivery] = useState({ deliveryAddress: "Loading delivery point...", deliveryNodeId: "NODE_KK12_BLOCK_A", deliveryFee: 0, platformFee: 0 });
+  const [delivery, setDelivery] = useState({ deliveryAddress: "Loading delivery point...", deliveryNodeId: "NODE_KK12_BLOCK_A", distanceKm: 0, deliveryFee: 0, platformFee: 0 });
   const [locations, setLocations] = useState([]);
   const [locationMessage, setLocationMessage] = useState("");
   const [isLocating, setIsLocating] = useState(false);
   const [isSavingLocation, setIsSavingLocation] = useState(false);
-  const canUndo = undoAvailable || items.length > 0;
+  const canUndo = undoAvailable;
   const subtotal = useMemo(() => items.reduce((total, item) => total + item.price * item.qty, 0), [items]);
 
   useEffect(() => {
@@ -51,11 +51,52 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
       setDelivery({
         deliveryAddress: savedLocation?.name || home?.deliveryAddress || savedNodeId,
         deliveryNodeId: savedNodeId,
-        deliveryFee: home?.deliveryFee ?? 2.5,
-        platformFee: home?.platformFee ?? 0.8
+        distanceKm: home?.distanceKm ?? 0,
+        deliveryFee: home?.deliveryFee ?? 0,
+        platformFee: home?.platformFee ?? 0
       });
     });
   }, [onRefreshCart]);
+
+  useEffect(() => {
+    const restaurantId = items.find((item) => item.restaurantId)?.restaurantId || "";
+
+    if (!restaurantId) {
+      setDelivery((current) => ({
+        ...current,
+        distanceKm: 0,
+        deliveryFee: 0,
+        platformFee: 0
+      }));
+      return;
+    }
+
+    let isCancelled = false;
+
+    postJson("/orders/fees", {
+      restaurantId,
+      deliveryNodeId: delivery.deliveryNodeId
+    })
+      .then((feeQuote) => {
+        if (isCancelled) {
+          return;
+        }
+
+        setDelivery((current) => ({
+          ...current,
+          distanceKm: feeQuote.distanceKm ?? 0,
+          deliveryFee: feeQuote.deliveryFee ?? 0,
+          platformFee: feeQuote.platformFee ?? 0
+        }));
+      })
+      .catch((error) => {
+        console.error("Failed to calculate delivery fees:", error);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [delivery.deliveryNodeId, items]);
 
   function saveDeliveryNode(nodeId, location) {
     return putJson("/live/customer/location", { deliveryNodeId: nodeId })
@@ -257,6 +298,7 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
           </div>
           <dl>
             <div><dt>Subtotal</dt><dd>RM {subtotal.toFixed(2)}</dd></div>
+            <div><dt>Distance</dt><dd>{Number(delivery.distanceKm || 0).toFixed(2)} km</dd></div>
             <div><dt>Delivery fee</dt><dd>RM {Number(delivery.deliveryFee || 0).toFixed(2)}</dd></div>
             <div><dt>Platform fee</dt><dd>RM {Number(delivery.platformFee || 0).toFixed(2)}</dd></div>
             <div className="total"><dt>Total</dt><dd>RM {(subtotal + Number(delivery.deliveryFee || 0) + Number(delivery.platformFee || 0)).toFixed(2)}</dd></div>

@@ -11,6 +11,29 @@ import com.umdabau.models.MenuItem;
  * enabling an O(1) time complexity "Undo" feature.
  */
 public class CartStack {
+    public static class CartAction {
+        private final MenuItem item;
+        private final String actionType;
+        private final int quantity;
+
+        public CartAction(MenuItem item, String actionType, int quantity) {
+            this.item = item;
+            this.actionType = actionType;
+            this.quantity = quantity;
+        }
+
+        public MenuItem getItem() {
+            return item;
+        }
+
+        public String getActionType() {
+            return actionType;
+        }
+
+        public int getQuantity() {
+            return quantity;
+        }
+    }
     
     /**
      * Internal Node class specifically for the Stack.
@@ -26,12 +49,26 @@ public class CartStack {
         }
     }
 
+    private class ActionNode {
+        CartAction action;
+        ActionNode next;
+
+        ActionNode(CartAction action) {
+            this.action = action;
+            this.next = null;
+        }
+    }
+
     private StackNode top; // Tracks the most recently added item
     private int size;      // Tracks the number of items in the cart
+    private ActionNode undoTop;
+    private int undoSize;
 
     public CartStack() {
         this.top = null;
         this.size = 0;
+        this.undoTop = null;
+        this.undoSize = 0;
     }
 
     /**
@@ -119,6 +156,37 @@ public class CartStack {
         return removedCount;
     }
 
+    public void pushUndoAction(MenuItem item, String actionType, int quantity) {
+        ActionNode newNode = new ActionNode(new CartAction(item, actionType, Math.max(quantity, 1)));
+        newNode.next = undoTop;
+        undoTop = newNode;
+        undoSize++;
+    }
+
+    public CartAction popUndoAction() {
+        if (!isUndoAvailable()) {
+            return null;
+        }
+
+        CartAction action = undoTop.action;
+        undoTop = undoTop.next;
+        undoSize--;
+        return action;
+    }
+
+    public boolean isUndoAvailable() {
+        return undoTop != null;
+    }
+
+    public int getUndoSize() {
+        return undoSize;
+    }
+
+    public void clearUndoHistory() {
+        undoTop = null;
+        undoSize = 0;
+    }
+
 
     /**
      * PEEK: Returns the item at the top of the stack without removing it.
@@ -150,6 +218,11 @@ public class CartStack {
     public void clear() {
         top = null;
         size = 0;
+    }
+
+    public void clearCartAndUndoHistory() {
+        clear();
+        clearUndoHistory();
     }
 
     public List<MenuItem> toList() {

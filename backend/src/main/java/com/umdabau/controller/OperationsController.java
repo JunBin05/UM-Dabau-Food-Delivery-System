@@ -44,8 +44,6 @@ import com.umdabau.repository.UserRepository;
 )
 public class OperationsController {
     private static final String DEFAULT_CUSTOMER_ID = "USR-001";
-    private static final double DEFAULT_DELIVERY_FEE = 2.5;
-    private static final double DEFAULT_PLATFORM_FEE = 0.8;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Autowired
@@ -125,6 +123,7 @@ public class OperationsController {
         User customer = userRepository.findById(DEFAULT_CUSTOMER_ID).orElse(null);
         String deliveryNodeId = resolveCustomerDeliveryNodeId(customer);
         Map<String, Object> deliveryLocation = graphLocation(deliveryNodeId);
+        Map<String, Object> feeQuote = quoteFees(menu.isEmpty() ? "" : menu.get(0).getRestaurantId(), deliveryNodeId);
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("customerName", customer == null ? "Customer" : customer.getFullName());
         payload.put("deliveryAddress", deliveryLocation.get("name"));
@@ -134,8 +133,9 @@ public class OperationsController {
         payload.put("categories", menu.stream().map(MenuItem::getCategory).distinct().toList());
         payload.put("activeOrder", toActiveOrder());
         payload.put("latestRoute", deliveryService.getLatestRouteSummary());
-        payload.put("deliveryFee", 2.5);
-        payload.put("platformFee", 0.8);
+        payload.put("distanceKm", feeQuote.get("distanceKm"));
+        payload.put("deliveryFee", feeQuote.get("deliveryFee"));
+        payload.put("platformFee", feeQuote.get("platformFee"));
         return payload;
     }
 
@@ -190,8 +190,11 @@ public class OperationsController {
             : restaurant.getRestaurantName();
         List<MenuItem> items = activeOrder == null || activeOrder.cart == null ? List.of() : activeOrder.cart;
         double subtotal = activeRecord == null ? items.stream().mapToDouble(MenuItem::getPrice).sum() : activeRecord.getSubtotal();
-        double deliveryFee = activeRecord == null ? DEFAULT_DELIVERY_FEE : activeRecord.getDeliveryFee();
-        double platformFee = activeRecord == null ? DEFAULT_PLATFORM_FEE : activeRecord.getPlatformFee();
+        Map<String, Object> fallbackFeeQuote = activeOrder == null
+            ? Map.of("deliveryFee", 0.0, "platformFee", 0.0)
+            : quoteFees(activeOrder.restaurantId, activeOrder.deliveryNodeId);
+        double deliveryFee = activeRecord == null ? (double) fallbackFeeQuote.get("deliveryFee") : activeRecord.getDeliveryFee();
+        double platformFee = activeRecord == null ? (double) fallbackFeeQuote.get("platformFee") : activeRecord.getPlatformFee();
         double total = activeRecord == null ? subtotal + deliveryFee + platformFee : activeRecord.getTotal();
         Map<String, Object> pickupLocation = graphLocation(pickupNodeId);
         Map<String, Object> dropoffLocation = graphLocation(dropoffNodeId);
@@ -454,6 +457,18 @@ public class OperationsController {
         }
 
         return location(node.nodeId, node.name, node.latitude, node.longitude);
+    }
+
+    private Map<String, Object> quoteFees(String restaurantId, String deliveryNodeId) {
+        Order feeOrder = new Order();
+        feeOrder.restaurantId = restaurantId;
+        feeOrder.deliveryNodeId = deliveryNodeId;
+        double distanceKm = deliveryService.calculateDeliveryDistanceKm(feeOrder);
+        Map<String, Object> feeQuote = new LinkedHashMap<>();
+        feeQuote.put("distanceKm", distanceKm);
+        feeQuote.put("deliveryFee", deliveryService.calculateDeliveryFee(distanceKm));
+        feeQuote.put("platformFee", deliveryService.calculatePlatformFee(distanceKm));
+        return feeQuote;
     }
 
     private List<Order> getActiveOrdersForMonitoring() {

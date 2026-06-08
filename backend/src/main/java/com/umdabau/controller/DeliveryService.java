@@ -30,6 +30,12 @@ public class DeliveryService {
     private static final String DEFAULT_RIDER_NODE_ID = "NODE_FSKTM";
     private static final String DEFAULT_RESTAURANT_NODE_ID = "NODE_UM_CENTRAL";
     private static final String DEFAULT_DELIVERY_NODE_ID = "NODE_KK12_BLOCK_A";
+    private static final double BASE_DELIVERY_FEE = 1.20;
+    private static final double DELIVERY_FEE_PER_KM = 1.10;
+    private static final double MIN_DELIVERY_FEE = 1.50;
+    private static final double BASE_PLATFORM_FEE = 0.20;
+    private static final double PLATFORM_FEE_PER_KM = 0.25;
+    private static final double MIN_PLATFORM_FEE = 0.30;
     
     // The shared brain for the whole app
     private final OrderQueue globalOrderQueue = new OrderQueue();
@@ -449,6 +455,35 @@ public class DeliveryService {
         return getCustomerNode(order);
     }
 
+    public double calculateDeliveryDistanceKm(Order order) {
+        if (order == null) {
+            return 0.0;
+        }
+
+        String restaurantNode = getRestaurantNode(order);
+        String customerNode = getCustomerNode(order);
+
+        try {
+            RouteSummary route = campusMap.runDijkstra(
+                restaurantNode,
+                customerNode,
+                order.orderId == null ? "FEE_QUOTE" : order.orderId,
+                order.assignedRiderId == null ? "" : order.assignedRiderId
+            );
+            return roundCurrency(route.getTotalDistanceKm());
+        } catch (IllegalArgumentException error) {
+            return 0.0;
+        }
+    }
+
+    public double calculateDeliveryFee(double distanceKm) {
+        return roundCurrency(Math.max(MIN_DELIVERY_FEE, BASE_DELIVERY_FEE + Math.max(distanceKm, 0.0) * DELIVERY_FEE_PER_KM));
+    }
+
+    public double calculatePlatformFee(double distanceKm) {
+        return roundCurrency(Math.max(MIN_PLATFORM_FEE, BASE_PLATFORM_FEE + Math.max(distanceKm, 0.0) * PLATFORM_FEE_PER_KM));
+    }
+
     private String normalizeNodeId(String nodeId, String fallbackNodeId) {
         if (nodeId == null || nodeId.isBlank()) {
             return fallbackNodeId;
@@ -487,6 +522,10 @@ public class DeliveryService {
         }
 
         return fallbackNodeId;
+    }
+
+    private double roundCurrency(double value) {
+        return Math.round(value * 100.0) / 100.0;
     }
 
     private RouteSummary combineRouteSummaries(RouteSummary firstRoute, RouteSummary secondRoute) {
