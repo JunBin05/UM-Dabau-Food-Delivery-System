@@ -4,6 +4,7 @@
     <title>UM-Dabau Graph Visualizer</title>
     <link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css' />
     <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>
+    <script src='https://unpkg.com/leaflet-polylinedecorator/dist/leaflet.polylineDecorator.js'></script>
     <style>#map { height: 100vh; width: 100%; margin: 0; padding: 0; }</style>
 </head>
 <body>
@@ -191,28 +192,18 @@
         { source: 'NODE_BAYU_CAFE', target: 'WAYPOINT_47' },
         { source: 'NODE_BAYU_CAFE', target: 'NODE_SCIENCE_FACULTY' },
         { source: 'NODE_BAYU_CAFE', target: 'WAYPOINT_12' },
-        { source: 'NODE_SCIENCE_FACULTY', target: 'NODE_KPS' },
         { source: 'NODE_SCIENCE_FACULTY', target: 'NODE_KAFE_SAINS' },
         { source: 'NODE_SCIENCE_FACULTY', target: 'NODE_BAYU_CAFE' },
         { source: 'NODE_KAFE_SAINS', target: 'NODE_SCIENCE_FACULTY' },
-        { source: 'NODE_KPS', target: 'WAYPOINT_46' },
         { source: 'NODE_KPS', target: 'NODE_DTC' },
-        { source: 'NODE_KPS', target: 'NODE_SCIENCE_FACULTY' },
         { source: 'NODE_DTC', target: 'NODE_PUSAT_ASASI_SAINS' },
-        { source: 'NODE_DTC', target: 'NODE_KPS' },
         { source: 'NODE_PUSAT_ASASI_SAINS', target: 'WAYPOINT_13' },
-        { source: 'NODE_PUSAT_ASASI_SAINS', target: 'NODE_DTC' },
         { source: 'WAYPOINT_13', target: 'WAYPOINT_14' },
-        { source: 'WAYPOINT_13', target: 'NODE_PUSAT_ASASI_SAINS' },
         { source: 'WAYPOINT_14', target: 'WAYPOINT_16' },
         { source: 'WAYPOINT_14', target: 'WAYPOINT_15' },
-        { source: 'WAYPOINT_14', target: 'WAYPOINT_13' },
         { source: 'WAYPOINT_15', target: 'WAYPOINT_17' },
         { source: 'WAYPOINT_15', target: 'WAYPOINT_16' },
-        { source: 'WAYPOINT_15', target: 'WAYPOINT_14' },
         { source: 'WAYPOINT_16', target: 'WAYPOINT_28' },
-        { source: 'WAYPOINT_16', target: 'WAYPOINT_14' },
-        { source: 'WAYPOINT_16', target: 'WAYPOINT_15' },
         { source: 'WAYPOINT_17', target: 'NODE_UMX' },
         { source: 'WAYPOINT_17', target: 'WAYPOINT_15' },
         { source: 'NODE_UMX', target: 'NODE_IPS' },
@@ -270,22 +261,15 @@
         { source: 'WAYPOINT_27', target: 'WAYPOINT_11' },
         { source: 'WAYPOINT_27', target: 'WAYPOINT_26' },
         { source: 'WAYPOINT_28', target: 'WAYPOINT_29' },
-        { source: 'WAYPOINT_28', target: 'WAYPOINT_16' },
         { source: 'WAYPOINT_29', target: 'WAYPOINT_30' },
-        { source: 'WAYPOINT_29', target: 'WAYPOINT_28' },
         { source: 'WAYPOINT_30', target: 'WAYPOINT_31' },
-        { source: 'WAYPOINT_30', target: 'WAYPOINT_29' },
         { source: 'WAYPOINT_31', target: 'WAYPOINT_32' },
-        { source: 'WAYPOINT_31', target: 'WAYPOINT_30' },
         { source: 'WAYPOINT_32', target: 'NODE_LAW' },
         { source: 'WAYPOINT_32', target: 'NODE_Q_BISTRO' },
-        { source: 'WAYPOINT_32', target: 'WAYPOINT_31' },
         { source: 'NODE_Q_BISTRO', target: 'WAYPOINT_32' },
         { source: 'NODE_LAW', target: 'WAYPOINT_33' },
-        { source: 'NODE_LAW', target: 'WAYPOINT_32' },
         { source: 'WAYPOINT_33', target: 'WAYPOINT_35' },
         { source: 'WAYPOINT_33', target: 'NODE_KK1' },
-        { source: 'WAYPOINT_33', target: 'NODE_LAW' },
         { source: 'NODE_KK1', target: 'WAYPOINT_34' },
         { source: 'NODE_KK1', target: 'WAYPOINT_33' },
         { source: 'WAYPOINT_34', target: 'NODE_ASTAR_CAFE' },
@@ -293,7 +277,6 @@
         { source: 'NODE_ASTAR_CAFE', target: 'WAYPOINT_34' },
         { source: 'WAYPOINT_35', target: 'WAYPOINT_40' },
         { source: 'WAYPOINT_35', target: 'NODE_EXAM_HALL' },
-        { source: 'WAYPOINT_35', target: 'WAYPOINT_33' },
         { source: 'NODE_EXAM_HALL', target: 'WAYPOINT_36' },
         { source: 'NODE_EXAM_HALL', target: 'WAYPOINT_35' },
         { source: 'WAYPOINT_36', target: 'NODE_KK6' },
@@ -317,13 +300,10 @@
         { source: 'NODE_PHARMACY', target: 'WAYPOINT_39' },
         { source: 'WAYPOINT_40', target: 'NODE_KK2' },
         { source: 'WAYPOINT_40', target: 'NODE_CAFE_KK2' },
-        { source: 'WAYPOINT_40', target: 'WAYPOINT_35' },
         { source: 'NODE_CAFE_KK2', target: 'WAYPOINT_40' },
         { source: 'NODE_KK2', target: 'WAYPOINT_41' },
-        { source: 'NODE_KK2', target: 'WAYPOINT_40' },
         { source: 'WAYPOINT_41', target: 'WAYPOINT_43' },
         { source: 'WAYPOINT_41', target: 'NODE_ENGINEERING' },
-        { source: 'WAYPOINT_41', target: 'NODE_KK2' },
         { source: 'NODE_ENGINEERING', target: 'WAYPOINT_42' },
         { source: 'NODE_ENGINEERING', target: 'WAYPOINT_41' },
         { source: 'WAYPOINT_42', target: 'NODE_KH_SHAWARMA' },
@@ -332,22 +312,13 @@
         { source: 'NODE_ENG_CHICKEN_RICE', target: 'WAYPOINT_42' },
         { source: 'NODE_KH_SHAWARMA', target: 'WAYPOINT_42' },
         { source: 'WAYPOINT_43', target: 'WAYPOINT_44' },
-        { source: 'WAYPOINT_43', target: 'WAYPOINT_41' },
-        { source: 'WAYPOINT_44', target: 'WAYPOINT_49' },
         { source: 'WAYPOINT_44', target: 'NODE_LIBRARY' },
-        { source: 'WAYPOINT_44', target: 'WAYPOINT_43' },
         { source: 'NODE_LIBRARY', target: 'NODE_ZUS' },
-        { source: 'NODE_LIBRARY', target: 'WAYPOINT_44' },
         { source: 'NODE_ZUS', target: 'WAYPOINT_45' },
-        { source: 'NODE_ZUS', target: 'NODE_LIBRARY' },
         { source: 'WAYPOINT_45', target: 'WAYPOINT_47' },
         { source: 'WAYPOINT_45', target: 'WAYPOINT_46' },
-        { source: 'WAYPOINT_45', target: 'NODE_ZUS' },
-        { source: 'WAYPOINT_46', target: 'WAYPOINT_47' },
         { source: 'WAYPOINT_46', target: 'NODE_KPS' },
-        { source: 'WAYPOINT_46', target: 'WAYPOINT_45' },
         { source: 'WAYPOINT_47', target: 'WAYPOINT_46' },
-        { source: 'WAYPOINT_47', target: 'WAYPOINT_45' },
         { source: 'WAYPOINT_47', target: 'NODE_BAYU_CAFE' },
         { source: 'WAYPOINT_48', target: 'NODE_UM_CENTRAL' },
         { source: 'WAYPOINT_48', target: 'WAYPOINT_12' },
@@ -366,20 +337,53 @@
         { source: 'WAYPOINT_49', target: 'Node_Edu_Fac' },
     ];
 
-    var lines = [];
+        var lines = [];
+        var drawnLines = new Set(); // To prevent drawing the base line twice
 
-    edges.forEach(edge => {
+        edges.forEach(edge => {
         var start = nodes[edge.source];
         var end = nodes[edge.target];
-        if (start && end) {
-            var polyline = L.polyline([[start.lat, start.lng], [end.lat, end.lng]], {
-                color: 'gray', weight: 2, opacity: 0.4
-            }).addTo(map);
-            lines.push({ sourceId: edge.source, targetId: edge.target, line: polyline });
-        }
-    });
 
-    Object.keys(nodes).forEach(id => {
+        if (start && end) {
+                var isTwoWay = edges.some(e => e.source === edge.target && e.target === edge.source);
+                var pairId = [edge.source, edge.target].sort().join('-');
+
+                var lineColor = isTwoWay ? 'gray' : '#ff9900';
+                var lineDash = isTwoWay ? null : '8, 8';
+                var lineOpacity = isTwoWay ? 0.5 : 0.8;
+
+                // 1. Draw the BASE LINE (Only once per pair of buildings to prevent overlapping darkness)
+                if (!drawnLines.has(pairId)) {
+                var polyline = L.polyline([[start.lat, start.lng], [end.lat, end.lng]], {
+                        color: lineColor, weight: 3, opacity: lineOpacity, dashArray: lineDash
+                }).addTo(map);
+                drawnLines.add(pairId);
+                lines.push({ sourceId: edge.source, targetId: edge.target, line: polyline });
+                }
+
+                // 2. Draw the ARROWS (Draw for EVERY single edge!)
+                // 1-way gets a big arrow in the middle (50%). 2-way gets smaller arrows pushed back to 35%.
+                var arrowOffset = isTwoWay ? '35%' : '50%';
+                var arrowSize = isTwoWay ? 11 : 15;
+
+                L.polylineDecorator([[start.lat, start.lng], [end.lat, end.lng]], {
+                patterns: [
+                        {
+                        offset: arrowOffset,
+                        repeat: 0,
+                        symbol: L.Symbol.arrowHead({
+                                pixelSize: arrowSize,
+                                polygon: true,
+                                pathOptions: {stroke: false, fillOpacity: 1, color: lineColor}
+                        })
+                        }
+                ]
+                }).addTo(map);
+        }
+        });
+
+        // Add the building markers
+        Object.keys(nodes).forEach(id => {
         if (id.includes('WAYPOINT')) return; // Hides waypoints to make lines look like natural curves
 
         var n = nodes[id];
@@ -393,22 +397,22 @@
         marker.bindTooltip("<b>" + n.name + "</b><br><small>" + id + "</small>", {permanent: false, direction: 'top'});
 
         marker.on('click', function() {
-            lines.forEach(l => {
+                lines.forEach(l => {
                 l.line.setStyle({color: 'gray', weight: 2, opacity: 0.4});
                 l.line.bringToBack();
-            });
+                });
 
-            var connections = 0;
-            lines.forEach(l => {
+                var connections = 0;
+                lines.forEach(l => {
                 if (l.sourceId === id || l.targetId === id) {
-                    l.line.setStyle({color: '#00ff00', weight: 5, opacity: 1.0});
-                    l.line.bringToFront();
-                    connections++;
+                        l.line.setStyle({color: '#00ff00', weight: 5, opacity: 1.0, dashArray: null});
+                        l.line.bringToFront();
+                        connections++;
                 }
-            });
-            console.log(n.name + " has " + connections + " connected roads.");
+                });
+                console.log(n.name + " has " + connections + " connected roads.");
         });
-    });
+        });
 </script>
 </body>
 </html>

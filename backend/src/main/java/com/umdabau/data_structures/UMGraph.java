@@ -83,12 +83,42 @@ public class UMGraph {
         double speedKmH = 25.0;
         double timeMinutes = (distanceKm / speedKmH) * 60.0;
 
-        // Give a minimum time of 0.3 mins (18 seconds) for super close waypoints
-        if (timeMinutes < 0.3)
-            timeMinutes = 0.3;
+        // Give a minimum time of 1 min for super close waypoints
+        if (timeMinutes < 1)
+            timeMinutes = 1;
 
         addEdge(nodeA, nodeB, distanceKm, timeMinutes);
         addEdge(nodeB, nodeA, distanceKm, timeMinutes);
+    }
+
+    // =========================================================================
+    // NEW: One-Way Road (Directed Edge)
+    // =========================================================================
+    private void addOneWayRoad(GraphNode sourceNode, GraphNode destNode) {
+        if (sourceNode == null || destNode == null)
+            return;
+
+        // 1. Calculate precise distance using the Haversine formula
+        double R = 6371.0; // Radius of the earth in km
+        double latDistance = Math.toRadians(destNode.latitude - sourceNode.latitude);
+        double lonDistance = Math.toRadians(destNode.longitude - sourceNode.longitude);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(sourceNode.latitude)) * Math.cos(Math.toRadians(destNode.latitude))
+                        * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        double distanceKm = R * c;
+
+        // 2. Calculate time (Assuming 25 km/h average speed on campus)
+        double speedKmH = 25.0;
+        double timeMinutes = (distanceKm / speedKmH) * 60.0;
+
+        // Give a minimum time of 1 min for super close waypoints
+        if (timeMinutes < 1)
+            timeMinutes = 1;
+
+        // 3. THE DIFFERENCE: Only add ONE edge!
+        // The rider can go from Source -> Dest, but NOT Dest -> Source.
+        addEdge(sourceNode, destNode, distanceKm, timeMinutes);
     }
 
     public void addEdge(GraphNode sourceNode, GraphNode targetNode, double distanceKm, double baseTimeMinutes) {
@@ -323,37 +353,37 @@ public class UMGraph {
 
         GraphNode kps = new GraphNode("NODE_KPS", "Perdana Siswa Complex (KPS)", 3.1218266147115314, 101.6554780054011);
         addVertex(kps);
-        addTwoWayRoad(getNodeById("NODE_SCIENCE_FACULTY"), getNodeById("NODE_KPS"));
+        
 
         GraphNode dtc = new GraphNode("NODE_DTC", "Dewan Tunku Canselor (DTC)", 3.1218270455920756, 101.65698707275085);
         addVertex(dtc);
-        addTwoWayRoad(getNodeById("NODE_KPS"), getNodeById("NODE_DTC"));
+        addOneWayRoad(getNodeById("NODE_KPS"), getNodeById("NODE_DTC"));
 
         GraphNode pusatAsasiSains = new GraphNode("NODE_PUSAT_ASASI_SAINS", "Pusat Asasi Sains (PASUM)",
                 3.1217019614283794, 101.6582439271044);
         addVertex(pusatAsasiSains);
-        addTwoWayRoad(getNodeById("NODE_DTC"), getNodeById("NODE_PUSAT_ASASI_SAINS"));
+        addOneWayRoad(getNodeById("NODE_DTC"), getNodeById("NODE_PUSAT_ASASI_SAINS"));
 
         GraphNode curve13 = new GraphNode("WAYPOINT_13", "Road Curve: Near PASUM", 3.1217899514079446,
                 101.65991329693982);
         addVertex(curve13);
-        addTwoWayRoad(getNodeById("NODE_PUSAT_ASASI_SAINS"), getNodeById("WAYPOINT_13"));
+        addOneWayRoad(getNodeById("NODE_PUSAT_ASASI_SAINS"), getNodeById("WAYPOINT_13"));
 
         GraphNode curve14 = new GraphNode("WAYPOINT_14", "Junction: KK1 / KK12", 3.1216172950361183,
                 101.66033132827977);
         addVertex(curve14);
-        addTwoWayRoad(getNodeById("WAYPOINT_13"), getNodeById("WAYPOINT_14"));
+        addOneWayRoad(getNodeById("WAYPOINT_13"), getNodeById("WAYPOINT_14"));
 
         GraphNode curve15 = new GraphNode("WAYPOINT_15", "Road Curve: Towards KK12", 3.121653213885515,
                 101.66067793233111);
         addVertex(curve15);
-        addTwoWayRoad(getNodeById("WAYPOINT_14"), getNodeById("WAYPOINT_15"));
+        addOneWayRoad(getNodeById("WAYPOINT_14"), getNodeById("WAYPOINT_15"));
 
         GraphNode curve16 = new GraphNode("WAYPOINT_16", "Road Curve: Towards KK1", 3.1213514178299984,
                 101.66052157782643);
         addVertex(curve16);
-        addTwoWayRoad(getNodeById("WAYPOINT_15"), getNodeById("WAYPOINT_16"));
-        addTwoWayRoad(getNodeById("WAYPOINT_14"), getNodeById("WAYPOINT_16"));
+        addOneWayRoad(getNodeById("WAYPOINT_15"), getNodeById("WAYPOINT_16"));
+        addOneWayRoad(getNodeById("WAYPOINT_14"), getNodeById("WAYPOINT_16"));
 
         GraphNode curve17 = new GraphNode("WAYPOINT_17", "Road Curve: Near UMX", 3.1223901739608775, 101.6608445018257);
         addVertex(curve17);
@@ -484,25 +514,25 @@ public class UMGraph {
         GraphNode curve28 = new GraphNode("WAYPOINT_28", "Road Curve: DTC to KL Gate", 3.1201906050210497,
                 101.66089419144464);
         addVertex(curve28);
-        addTwoWayRoad(getNodeById("WAYPOINT_16"), getNodeById("WAYPOINT_28"));
+        addOneWayRoad(getNodeById("WAYPOINT_16"), getNodeById("WAYPOINT_28"));
 
         GraphNode curve29 = new GraphNode("WAYPOINT_29", "Road Curve: Approaching KL Gate", 3.119678689551388,
                 101.66175131800983);
         addVertex(curve29);
-        addTwoWayRoad(getNodeById("WAYPOINT_28"), getNodeById("WAYPOINT_29"));
+        addOneWayRoad(getNodeById("WAYPOINT_28"), getNodeById("WAYPOINT_29"));
 
         GraphNode curve30 = new GraphNode("WAYPOINT_30", "Road Curve: KL Gate", 3.1190813484331894, 101.66213248953211);
         addVertex(curve30);
-        addTwoWayRoad(getNodeById("WAYPOINT_29"), getNodeById("WAYPOINT_30"));
+        addOneWayRoad(getNodeById("WAYPOINT_29"), getNodeById("WAYPOINT_30"));
 
         GraphNode curve31 = new GraphNode("WAYPOINT_31", "Road Curve: KL Gate (Outer)", 3.118810825810348,
                 101.66203206680035);
         addVertex(curve31);
-        addTwoWayRoad(getNodeById("WAYPOINT_30"), getNodeById("WAYPOINT_31"));
+        addOneWayRoad(getNodeById("WAYPOINT_30"), getNodeById("WAYPOINT_31"));
 
         GraphNode curve32 = new GraphNode("WAYPOINT_32", "Junction: Q Bistro", 3.1187970790924164, 101.6616714617628);
         addVertex(curve32);
-        addTwoWayRoad(getNodeById("WAYPOINT_31"), getNodeById("WAYPOINT_32"));
+        addOneWayRoad(getNodeById("WAYPOINT_31"), getNodeById("WAYPOINT_32"));
 
         GraphNode qBistro = new GraphNode("NODE_Q_BISTRO", "Q Bistro Universiti Malaya", 3.118418137319431,
                 101.6617929695634);
@@ -511,12 +541,12 @@ public class UMGraph {
 
         GraphNode lawFaculty = new GraphNode("NODE_LAW", "Faculty of Law", 3.118742650929227, 101.66105768741583);
         addVertex(lawFaculty);
-        addTwoWayRoad(getNodeById("WAYPOINT_32"), getNodeById("NODE_LAW"));
+        addOneWayRoad(getNodeById("WAYPOINT_32"), getNodeById("NODE_LAW"));
 
         GraphNode curve33 = new GraphNode("WAYPOINT_33", "Road Curve: Towards KK1", 3.118232836664097,
                 101.65959369674684);
         addVertex(curve33);
-        addTwoWayRoad(getNodeById("NODE_LAW"), getNodeById("WAYPOINT_33"));
+        addOneWayRoad(getNodeById("NODE_LAW"), getNodeById("WAYPOINT_33"));
 
         GraphNode kk1 = new GraphNode("NODE_KK1", "Kolej Kediaman 1 (KK1)", 3.1179771487586265, 101.6595118392681);
         addVertex(kk1);
@@ -534,7 +564,7 @@ public class UMGraph {
 
         GraphNode curve35 = new GraphNode("WAYPOINT_35", "Junction: Exam Hall", 3.1182619069617092, 101.65868992694409);
         addVertex(curve35);
-        addTwoWayRoad(getNodeById("WAYPOINT_33"), getNodeById("WAYPOINT_35"));
+        addOneWayRoad(getNodeById("WAYPOINT_33"), getNodeById("WAYPOINT_35"));
 
         GraphNode examHall = new GraphNode("NODE_EXAM_HALL", "Examination Hall", 3.116982993758277, 101.65793074108801);
         addVertex(examHall);
@@ -589,7 +619,7 @@ public class UMGraph {
 
         GraphNode curve40 = new GraphNode("WAYPOINT_40", "Junction: KK2 Cafe", 3.1183969226181927, 101.65847597260097);
         addVertex(curve40);
-        addTwoWayRoad(getNodeById("WAYPOINT_35"), getNodeById("WAYPOINT_40"));
+        addOneWayRoad(getNodeById("WAYPOINT_35"), getNodeById("WAYPOINT_40"));
 
         GraphNode cafeKk2 = new GraphNode("NODE_CAFE_KK2", "Cafe KK2 (Tuanku Bahiyah Cafe)", 3.1179514229225025,
                 101.65787514343397);
@@ -599,12 +629,12 @@ public class UMGraph {
         GraphNode kk2 = new GraphNode("NODE_KK2", "Tuanku Bahiyah Residential College (KK2)", 3.1190499267850367,
                 101.65682171469975);
         addVertex(kk2);
-        addTwoWayRoad(getNodeById("WAYPOINT_40"), getNodeById("NODE_KK2"));
+        addOneWayRoad(getNodeById("WAYPOINT_40"), getNodeById("NODE_KK2"));
 
         GraphNode curve41 = new GraphNode("WAYPOINT_41", "Junction: Faculty of Engineering", 3.1190746095990405,
                 101.65644178747449);
         addVertex(curve41);
-        addTwoWayRoad(getNodeById("NODE_KK2"), getNodeById("WAYPOINT_41"));
+        addOneWayRoad(getNodeById("NODE_KK2"), getNodeById("WAYPOINT_41"));
 
         GraphNode engineering = new GraphNode("NODE_ENGINEERING", "Road Curve: Engineering Cafe", 3.118893241995705,
                 101.655915371057);
@@ -628,38 +658,38 @@ public class UMGraph {
         GraphNode curve43 = new GraphNode("WAYPOINT_43", "Junction: PJ Gate / Library", 3.1192086804350523,
                 101.65482460211082);
         addVertex(curve43);
-        addTwoWayRoad(getNodeById("WAYPOINT_41"), getNodeById("WAYPOINT_43"));
+        addOneWayRoad(getNodeById("WAYPOINT_41"), getNodeById("WAYPOINT_43"));
 
         GraphNode curve44 = new GraphNode("WAYPOINT_44", "Road Curve: PJ Gate to Library", 3.1194536701545346,
                 101.65458387816288);
         addVertex(curve44);
-        addTwoWayRoad(getNodeById("WAYPOINT_43"), getNodeById("WAYPOINT_44"));
+        addOneWayRoad(getNodeById("WAYPOINT_43"), getNodeById("WAYPOINT_44"));
 
         GraphNode library = new GraphNode("NODE_LIBRARY", "UM Central Library", 3.120295528212342, 101.65459540772146);
         addVertex(library);
-        addTwoWayRoad(getNodeById("WAYPOINT_44"), getNodeById("NODE_LIBRARY"));
+        addOneWayRoad(getNodeById("WAYPOINT_44"), getNodeById("NODE_LIBRARY"));
 
         GraphNode zus = new GraphNode("NODE_ZUS", "ZUS Coffee", 3.120509846723895, 101.65459257602762);
         addVertex(zus);
-        addTwoWayRoad(getNodeById("NODE_LIBRARY"), getNodeById("NODE_ZUS"));
+        addOneWayRoad(getNodeById("NODE_LIBRARY"), getNodeById("NODE_ZUS"));
 
         GraphNode curve45 = new GraphNode("WAYPOINT_45", "Junction: KPS / UM Central", 3.121291513140947,
                 101.6545910870507);
         addVertex(curve45);
-        addTwoWayRoad(getNodeById("NODE_ZUS"), getNodeById("WAYPOINT_45"));
+        addOneWayRoad(getNodeById("NODE_ZUS"), getNodeById("WAYPOINT_45"));
 
         GraphNode curve46 = new GraphNode("WAYPOINT_46", "Road Curve: Towards KPS", 3.121489441892216,
                 101.65473463698743);
         addVertex(curve46);
-        addTwoWayRoad(getNodeById("WAYPOINT_45"), getNodeById("WAYPOINT_46"));
-        addTwoWayRoad(getNodeById("WAYPOINT_46"), getNodeById("NODE_KPS"));
+        addOneWayRoad(getNodeById("WAYPOINT_45"), getNodeById("WAYPOINT_46"));
+        addOneWayRoad(getNodeById("WAYPOINT_46"), getNodeById("NODE_KPS"));
 
         GraphNode curve47 = new GraphNode("WAYPOINT_47", "Road Curve: Bayu Cafe to KPS", 3.121459188273624,
                 101.65441670352058);
         addVertex(curve47);
-        addTwoWayRoad(getNodeById("NODE_BAYU_CAFE"), getNodeById("WAYPOINT_47"));
-        addTwoWayRoad(getNodeById("WAYPOINT_47"), getNodeById("WAYPOINT_45"));
-        addTwoWayRoad(getNodeById("WAYPOINT_47"), getNodeById("WAYPOINT_46"));
+        addTwoWayRoad(getNodeById("WAYPOINT_47"), getNodeById("NODE_BAYU_CAFE"));
+        addOneWayRoad(getNodeById("WAYPOINT_45"), getNodeById("WAYPOINT_47"));
+        addOneWayRoad(getNodeById("WAYPOINT_47"), getNodeById("WAYPOINT_46"));
 
         GraphNode curve48 = new GraphNode("WAYPOINT_48", "Road Curve: Towards UM Central", 3.121591694415608,
                 101.65355007276575);
@@ -695,7 +725,7 @@ public class UMGraph {
                 101.6541731604761);
         addVertex(curve49);
         addTwoWayRoad(getNodeById("WAYPOINT_49"), getNodeById("Node_Edu_Fac"));
-        addTwoWayRoad(getNodeById("WAYPOINT_49"), getNodeById("WAYPOINT_44"));
+        addOneWayRoad(getNodeById("WAYPOINT_49"), getNodeById("WAYPOINT_44"));
 
         System.out.println("UM Campus Graph successfully wired with Auto-Calculating Distances! Ready for routing.");
     }
@@ -708,6 +738,10 @@ public class UMGraph {
             writer.write("    <title>UM-Dabau Graph Visualizer</title>\n");
             writer.write("    <link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css' />\n");
             writer.write("    <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>\n");
+            
+            // 🚀 NEW: We add the PolylineDecorator library to draw arrows!
+            writer.write("    <script src='https://unpkg.com/leaflet-polylinedecorator/dist/leaflet.polylineDecorator.js'></script>\n");
+            
             writer.write("    <style>#map { height: 100vh; width: 100%; margin: 0; padding: 0; }</style>\n");
             writer.write("</head>\n<body>\n");
             writer.write("<div id='map'></div>\n");
@@ -741,51 +775,84 @@ public class UMGraph {
             writer.write("    ];\n\n");
 
             writer.write(
-                    """
-                                var lines = [];
+                """
+                        var lines = [];
+                        var drawnLines = new Set(); // To prevent drawing the base line twice
 
-                                edges.forEach(edge => {
-                                    var start = nodes[edge.source];
-                                    var end = nodes[edge.target];
-                                    if (start && end) {
-                                        var polyline = L.polyline([[start.lat, start.lng], [end.lat, end.lng]], {
-                                            color: 'gray', weight: 2, opacity: 0.4
-                                        }).addTo(map);
-                                        lines.push({ sourceId: edge.source, targetId: edge.target, line: polyline });
-                                    }
+                        edges.forEach(edge => {
+                        var start = nodes[edge.source];
+                        var end = nodes[edge.target];
+                        
+                        if (start && end) {
+                                var isTwoWay = edges.some(e => e.source === edge.target && e.target === edge.source);
+                                var pairId = [edge.source, edge.target].sort().join('-');
+                                
+                                var lineColor = isTwoWay ? 'gray' : '#ff9900';
+                                var lineDash = isTwoWay ? null : '8, 8';
+                                var lineOpacity = isTwoWay ? 0.5 : 0.8;
+
+                                // 1. Draw the BASE LINE (Only once per pair of buildings to prevent overlapping darkness)
+                                if (!drawnLines.has(pairId)) {
+                                var polyline = L.polyline([[start.lat, start.lng], [end.lat, end.lng]], {
+                                        color: lineColor, weight: 3, opacity: lineOpacity, dashArray: lineDash
+                                }).addTo(map);
+                                drawnLines.add(pairId);
+                                lines.push({ sourceId: edge.source, targetId: edge.target, line: polyline });
+                                }
+
+                                // 2. Draw the ARROWS (Draw for EVERY single edge!)
+                                // 1-way gets a big arrow in the middle (50%). 2-way gets smaller arrows pushed back to 35%.
+                                var arrowOffset = isTwoWay ? '35%' : '50%';
+                                var arrowSize = isTwoWay ? 11 : 15;
+
+                                L.polylineDecorator([[start.lat, start.lng], [end.lat, end.lng]], {
+                                patterns: [
+                                        { 
+                                        offset: arrowOffset, 
+                                        repeat: 0, 
+                                        symbol: L.Symbol.arrowHead({
+                                                pixelSize: arrowSize, 
+                                                polygon: true, 
+                                                pathOptions: {stroke: false, fillOpacity: 1, color: lineColor}
+                                        }) 
+                                        }
+                                ]
+                                }).addTo(map);
+                        }
+                        });
+
+                        // Add the building markers
+                        Object.keys(nodes).forEach(id => {
+                        if (id.includes('WAYPOINT')) return; // Hides waypoints to make lines look like natural curves
+
+                        var n = nodes[id];
+                        var isFood = id.includes('CAFE') || id.includes('FOOD') || id.includes('BISTRO') || id.includes('ZUS') || id.includes('SHAWARMA') || id.includes('YOGO') || id.includes('TOAST');
+
+                        var iconColor = isFood ? 'red' : 'blue';
+                        var markerHtml = `<div style="background-color: ${iconColor}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px black;"></div>`;
+                        var customIcon = L.divIcon({ html: markerHtml, className: '', iconSize: [16, 16], iconAnchor: [8, 8] });
+
+                        var marker = L.marker([n.lat, n.lng], {icon: customIcon}).addTo(map);
+                        marker.bindTooltip("<b>" + n.name + "</b><br><small>" + id + "</small>", {permanent: false, direction: 'top'});
+
+                        marker.on('click', function() {
+                                lines.forEach(l => {
+                                l.line.setStyle({color: 'gray', weight: 2, opacity: 0.4});
+                                l.line.bringToBack();
                                 });
 
-                                Object.keys(nodes).forEach(id => {
-                                    if (id.includes('WAYPOINT')) return; // Hides waypoints to make lines look like natural curves
-
-                                    var n = nodes[id];
-                                    var isFood = id.includes('CAFE') || id.includes('FOOD') || id.includes('BISTRO') || id.includes('ZUS') || id.includes('SHAWARMA') || id.includes('YOGO') || id.includes('TOAST');
-
-                                    var iconColor = isFood ? 'red' : 'blue';
-                                    var markerHtml = `<div style="background-color: ${iconColor}; width: 12px; height: 12px; border-radius: 50%; border: 2px solid white; box-shadow: 0 0 4px black;"></div>`;
-                                    var customIcon = L.divIcon({ html: markerHtml, className: '', iconSize: [16, 16], iconAnchor: [8, 8] });
-
-                                    var marker = L.marker([n.lat, n.lng], {icon: customIcon}).addTo(map);
-                                    marker.bindTooltip("<b>" + n.name + "</b><br><small>" + id + "</small>", {permanent: false, direction: 'top'});
-
-                                    marker.on('click', function() {
-                                        lines.forEach(l => {
-                                            l.line.setStyle({color: 'gray', weight: 2, opacity: 0.4});
-                                            l.line.bringToBack();
-                                        });
-
-                                        var connections = 0;
-                                        lines.forEach(l => {
-                                            if (l.sourceId === id || l.targetId === id) {
-                                                l.line.setStyle({color: '#00ff00', weight: 5, opacity: 1.0});
-                                                l.line.bringToFront();
-                                                connections++;
-                                            }
-                                        });
-                                        console.log(n.name + " has " + connections + " connected roads.");
-                                    });
+                                var connections = 0;
+                                lines.forEach(l => {
+                                if (l.sourceId === id || l.targetId === id) {
+                                        l.line.setStyle({color: '#00ff00', weight: 5, opacity: 1.0, dashArray: null}); 
+                                        l.line.bringToFront();
+                                        connections++;
+                                }
                                 });
-                            """);
+                                console.log(n.name + " has " + connections + " connected roads.");
+                        });
+                        });
+                """);
 
             writer.write("</script>\n</body>\n</html>");
             System.out.println("SUCCESS! Open 'UM_Campus_Map.html' in your web browser.");
