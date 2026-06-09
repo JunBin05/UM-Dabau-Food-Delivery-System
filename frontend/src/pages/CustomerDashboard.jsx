@@ -131,6 +131,14 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
       .finally(() => setIsSearching(false));
   }
 
+  function openRestaurantMenu(restaurantId) {
+    onNavigate({
+      page: "browse-menu",
+      category: "All Items",
+      restaurantId: restaurantId || ""
+    });
+  }
+
   return (
     <div className="page-stack customer-app-home">
       <section className="customer-home-hero">
@@ -258,7 +266,7 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
                 <span className={`status-chip ${restaurant.status === "Open" ? "green" : "amber"}`}>{restaurant.status}</span>
                 <b>★ 4.{restaurant.restaurantId?.slice(-1) || "8"}</b>
               </div>
-              <button className="secondary-button full" type="button" onClick={() => onNavigate("browse-menu")}>View menu</button>
+              <button className="secondary-button full" type="button" onClick={() => openRestaurantMenu(restaurant.restaurantId)}>View menu</button>
             </article>
           ))}
         </div>
@@ -280,7 +288,7 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
               <small>{item.restaurantId}</small>
               <div>
                 <b>RM {Number(item.price).toFixed(2)}</b>
-                <button className="icon-label-button" type="button" onClick={() => onNavigate("browse-menu")}>View</button>
+                <button className="icon-label-button" type="button" onClick={() => openRestaurantMenu(item.restaurantId)}>View</button>
               </div>
             </article>
           ))}
