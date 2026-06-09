@@ -4,12 +4,16 @@ import java.util.AbstractList;
 import java.util.List;
 import com.umdabau.models.User;
 
+/**
+ * Custom singly linked list for users.
+ * A hash map index is kept beside it so lookup by userId does not need a full scan.
+ */
 public class UserList {
     private UserNode head;
     private UserNode tail;
     private int size;
 
-    // 🌟 FIX 1: The HashMap Index belongs to the LIST, not individual nodes!
+    // Shared index for the whole list. Each node stays simple and only stores linked-list data.
     private UserHashMap userIndex;
 
     private static class UserNode {
@@ -26,7 +30,6 @@ public class UserList {
         head = null;
         tail = null;
         size = 0;
-        // 🌟 FIX 2: Initialize the index here for the entire list scope
         userIndex = new UserHashMap(); 
     }
 
@@ -36,7 +39,7 @@ public class UserList {
             return false;
         }
 
-        // 🌟 NOW CORRECTLY CHECKS THE WHOLE LIST INDEX IN O(1) CONSTANT TIME
+        // Fast duplicate check before adding a new linked-list node.
         if (userIndex.contains(user.getUserId())) {
             return false; 
         }
@@ -51,18 +54,17 @@ public class UserList {
             tail = newNode;
         }
 
-        // 🌟 ADD TO HASHMAP INDEX FOR FUTURE FAST RETRIEVAL
+        // Keep the index in sync with the linked list.
         userIndex.put(user.getUserId(), user);
         size++;
         return true;
     }
 
-    // 🌟 OPTIMIZED RETRIEVAL: O(1) instead of O(n) loop
+    // Lookup uses the hash map index: average O(1) instead of linked-list O(n).
     public User findUserById(String userId) {
         if (userId == null) {
             return null;
         }
-        // Direct O(1) point-to-point retrieval!
         return userIndex.get(userId);
     }
 
@@ -78,7 +80,7 @@ public class UserList {
             if (updatedUser.getUserId().equals(current.data.getUserId())) {
                 current.data = updatedUser;
                 
-                // 🌟 FIX 3: Keep the HashMap index updated with the new object reference
+                // Replace the indexed object too, otherwise lookup may return old data.
                 userIndex.put(updatedUser.getUserId(), updatedUser);
                 return true;
             }
@@ -111,7 +113,7 @@ public class UserList {
 
                 size--;
                 
-                // 🌟 REMOVE FROM HASHMAP INDEX SO IT DOES NOT HOLD DEAD DATA
+                // Remove the ID from the fast index after the node is unlinked.
                 userIndex.remove(userId);
                 return true;
             }
@@ -149,6 +151,7 @@ public class UserList {
     }
 
     public List<User> toList() {
+        // AbstractList exposes the linked-list data as a List without storing a second copy.
         return new AbstractList<User>() {
             @Override
             public User get(int index) {
@@ -177,7 +180,7 @@ public class UserList {
         tail = null;
         size = 0;
         
-        // 🌟 FIX 4: Reinitialize the HashMap so it is completely wiped clear too
+        // A fresh index avoids keeping references to users that were just cleared.
         userIndex = new UserHashMap();
     }
 }

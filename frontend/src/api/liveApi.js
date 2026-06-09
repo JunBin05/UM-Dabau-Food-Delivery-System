@@ -1,5 +1,6 @@
 const API_BASE_URL = "http://localhost:8080/api";
 
+// Shared fetch helper so pages handle backend errors in the same way.
 export function fetchJson(path, options = {}) {
   return fetch(`${API_BASE_URL}${path}`, {
     ...options,
@@ -21,6 +22,7 @@ export function fetchJson(path, options = {}) {
 }
 
 export function postJson(path, body = {}) {
+  // Small wrapper for JSON POST requests.
   return fetchJson(path, {
     method: "POST",
     body: JSON.stringify(body)
@@ -28,6 +30,7 @@ export function postJson(path, body = {}) {
 }
 
 export function putJson(path, body = {}) {
+  // Small wrapper for JSON PUT requests.
   return fetchJson(path, {
     method: "PUT",
     body: JSON.stringify(body)

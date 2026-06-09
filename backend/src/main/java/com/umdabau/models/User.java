@@ -4,6 +4,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+/**
+ * User record for customers, riders, and admins.
+ * Rider availability and currentNodeId are used by dispatch and map tracking.
+ */
 @Entity
 @Table(name = "users")
 public class User {

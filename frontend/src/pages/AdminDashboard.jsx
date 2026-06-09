@@ -11,6 +11,7 @@ export default function AdminDashboard({ onNavigate }) {
   const [overview, setOverview] = useState(emptyOverview);
 
   useEffect(() => {
+    // One overview call feeds the dashboard cards, alerts, and latest order table.
     fetchJson("/live/admin/overview")
       .then(setOverview)
       .catch((error) => console.error("Failed to load admin overview:", error));
@@ -31,6 +32,7 @@ export default function AdminDashboard({ onNavigate }) {
       </section>
 
       <section className="stat-grid four admin-stat-grid">
+        {/* These stats are prepared by the backend from the current live data structures. */}
         {overview.stats.map((stat) => (
           <article className="stat-card" key={stat.label}>
             <span className="stat-icon material-symbols-outlined">{stat.icon}</span>

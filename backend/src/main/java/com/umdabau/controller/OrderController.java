@@ -35,6 +35,10 @@ import com.umdabau.repository.UserRepository;
     allowedHeaders = "*",
     methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS}
 )
+/**
+ * Customer cart and checkout API.
+ * CartStack handles the undo behavior, while H2 stores cart/order state across restarts.
+ */
 public class OrderController {
     private static final String DEFAULT_CUSTOMER_ID = "USR-001";
     private static final String ACTION_ADD = "ADD";
@@ -45,7 +49,7 @@ public class OrderController {
     private final ObjectMapper objectMapper = new ObjectMapper();
     
     @Autowired
-    private DeliveryService deliveryService; // <-- Talk to the Service, not another Controller!
+    private DeliveryService deliveryService;
 
     @Autowired
     private ActiveOrderRepository activeOrderRepository;
@@ -59,6 +63,7 @@ public class OrderController {
     @PostMapping("/cart/add")
     public ResponseEntity<Map<String, Object>> addToCart(@RequestBody MenuItem item) {
         System.out.println("Received cart item: " + item.getName());
+        // Save first so cart survives refresh, then push into the stack for undo behavior.
         saveOrIncrementCartItem(item);
         activeCart.push(item);
         activeCart.pushUndoAction(item, ACTION_ADD, 1);
@@ -67,7 +72,7 @@ public class OrderController {
 
     @GetMapping("/cart")
     public ResponseEntity<List<MenuItem>> getCartItems() {
-        // SMART HYDRATION: Only rebuild if the RAM stack is completely empty.
+        // Rebuild the stack from H2 only when RAM is empty, so normal stack order is preserved.
         if (activeCart.isEmpty() && cartItemRepository.countByCustomerId(DEFAULT_CUSTOMER_ID) > 0) {
             hydrateCartStackFromRecords();
         }
@@ -76,7 +81,7 @@ public class OrderController {
 
     @GetMapping("/cart/count")
     public ResponseEntity<Integer> getCartCount() {
-        // SMART HYDRATION check here too
+        // Same hydration guard as /cart because the frontend may ask for count first.
         if (activeCart.isEmpty() && cartItemRepository.countByCustomerId(DEFAULT_CUSTOMER_ID) > 0) {
             hydrateCartStackFromRecords();
         }
@@ -90,6 +95,7 @@ public class OrderController {
 
     @PostMapping("/cart/undo")
     public ResponseEntity<Map<String, Object>> undoLastCartAction() {
+        // The undo stack stores what changed, then reverseCartAction applies the opposite operation.
         CartStack.CartAction latestAction = activeCart.popUndoAction();
 
         if (latestAction == null) {
@@ -154,6 +160,7 @@ public class OrderController {
 
     @PostMapping("/checkout")
     public ResponseEntity<Map<String, Object>> checkoutOrder(@RequestBody Order newOrder) {
+        // Checkout always starts from the DB-backed cart, then queues the order for dispatch.
         if (activeCart.isEmpty() && cartItemRepository.countByCustomerId(DEFAULT_CUSTOMER_ID) > 0) {
             hydrateCartStackFromRecords();
         }
@@ -191,7 +198,7 @@ public class OrderController {
         double deliveryFee = (double) feeQuote.get("deliveryFee");
         double platformFee = (double) feeQuote.get("platformFee");
         
-        // Put the order into the globally shared queue!
+        // Put the order into the shared FIFO queue before the service assigns a rider.
         deliveryService.getOrderQueue().enqueue(newOrder);
         deliveryService.setLatestCustomerOrder(newOrder);
         saveActiveOrder(newOrder, subtotal, deliveryFee, platformFee, true);
@@ -230,6 +237,7 @@ public class OrderController {
 
     @PostMapping("/received")
     public ResponseEntity<Map<String, Object>> markOrderReceived() {
+        // If the service lost memory after restart, fall back to the active DB order record.
         Order completedOrder = deliveryService.completeLatestDelivery();
         ActiveOrderRecord completedRecord = null;
 
@@ -266,6 +274,7 @@ public class OrderController {
         activeCart.clear();
         for (CartItemRecord record : cartItemRepository.findByCustomerIdOrderByIdAsc(DEFAULT_CUSTOMER_ID)) {
             int quantity = Math.max(record.getQuantity(), 1);
+            // Quantity is expanded back into individual stack nodes for proper undo/remove behavior.
             for (int count = 0; count < quantity; count++) {
                 activeCart.push(toMenuItem(record));
             }
@@ -273,6 +282,7 @@ public class OrderController {
     }
 
     private void saveOrIncrementCartItem(MenuItem item) {
+        // Keep one DB row per menu item and update quantity instead of inserting duplicates.
         List<CartItemRecord> records = cartItemRepository.findByCustomerIdAndMenuItemId(DEFAULT_CUSTOMER_ID, menuItemId(item));
         CartItemRecord record = records.isEmpty() ? new CartItemRecord() : records.get(0);
         int currentQuantity = records.stream()
@@ -318,6 +328,7 @@ public class OrderController {
         String actionType = action.getActionType();
         int quantity = Math.max(action.getQuantity(), 1);
 
+        // Undoing a remove means putting the item(s) back into both stack and DB.
         if (ACTION_REMOVE_ONE.equalsIgnoreCase(actionType) || ACTION_REMOVE_ALL.equalsIgnoreCase(actionType)) {
             for (int count = 0; count < quantity; count++) {
                 activeCart.push(actionItem);
@@ -345,10 +356,8 @@ public class OrderController {
     }
 
     private Map<String, Object> cartResponse(String message) {
-        
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("message", message);
-        
         response.put("items", activeCart.toList()); 
         response.put("undoAvailable", activeCart.isUndoAvailable()); 
         
@@ -382,6 +391,7 @@ public class OrderController {
     }
 
     private void saveActiveOrder(Order order, double subtotal, double deliveryFee, double platformFee, boolean active) {
+        // ActiveOrderRecord is the persisted version used by tracking, rider dashboard, and admin monitoring.
         ActiveOrderRecord record = activeOrderRepository.findById(order.orderId).orElseGet(ActiveOrderRecord::new);
         record.setOrderId(order.orderId);
         record.setCustomerId(order.customerId);

@@ -2,7 +2,10 @@ package com.umdabau.data_structures;
 
 import com.umdabau.models.GraphNode;
 
-// 1. The Edge Class (Acts as a Linked Node pointing to the next connection)
+/**
+ * One road connection in the campus graph.
+ * Edges are stored as linked nodes inside each vertex's adjacency list.
+ */
 public class Edge {
     GraphNode targetNode;    
     double distanceKm;       // The passive tracker for the UI Contract

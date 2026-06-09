@@ -2,6 +2,7 @@ import React from "react";
 import { navigationByRole, roleMeta } from "../config/navigation.js";
 
 function Icon({ name, filled = false }) {
+  // Material Symbols uses this font-variation setting for filled active icons.
   return (
     <span className="material-symbols-outlined" style={{ fontVariationSettings: filled ? "'FILL' 1" : undefined }}>
       {name}
@@ -19,6 +20,7 @@ export default function Sidebar({ role, currentPage, onNavigate, onLogout }) {
   }[role] ?? "Smart Delivery Portal";
 
   function handleClick(item) {
+    // Logout is the one nav item that changes session state instead of changing page.
     if (item.id === "logout") {
       onLogout();
       return;

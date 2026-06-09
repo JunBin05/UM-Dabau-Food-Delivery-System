@@ -42,6 +42,10 @@ import com.umdabau.repository.UserRepository;
     allowedHeaders = "*",
     methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.PUT, RequestMethod.DELETE, RequestMethod.OPTIONS}
 )
+/**
+ * Live dashboard API for customer, rider, and admin screens.
+ * Most responses are shaped for the React frontend while still reading from DB-backed state.
+ */
 public class OperationsController {
     private static final String DEFAULT_CUSTOMER_ID = "USR-001";
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -63,6 +67,7 @@ public class OperationsController {
 
     @GetMapping("/admin/overview")
     public Map<String, Object> getAdminOverview() {
+        // Admin overview combines DB records with runtime queue/heap/route state.
         List<Order> activeOrders = getActiveOrdersForMonitoring();
         List<User> users = userRepository.findAll();
         List<Restaurant> restaurants = restaurantRepository.findAll();
@@ -119,6 +124,7 @@ public class OperationsController {
 
     @GetMapping("/customer/home")
     public Map<String, Object> getCustomerHome() {
+        // Customer home needs enough data for the first screen without separate frontend mock arrays.
         List<MenuItem> menu = getMenuItemsFromDatabase();
         User customer = userRepository.findById(DEFAULT_CUSTOMER_ID).orElse(null);
         String deliveryNodeId = resolveCustomerDeliveryNodeId(customer);
@@ -141,6 +147,7 @@ public class OperationsController {
 
     @PutMapping("/customer/location")
     public ResponseEntity<Map<String, Object>> updateCustomerLocation(@RequestBody Map<String, String> request) {
+        // Store the delivery node on the customer record so refresh/restart keeps the latest location.
         String requestedNodeId = request.getOrDefault("deliveryNodeId", request.get("nodeId"));
         String deliveryNodeId = normalizeKnownNodeId(requestedNodeId, "");
 
@@ -166,6 +173,7 @@ public class OperationsController {
 
     @GetMapping("/customer/tracking")
     public Map<String, Object> getCustomerTracking() {
+        // Tracking can be rebuilt from ActiveOrderRecord if the in-memory service was restarted.
         Order activeOrder = deliveryService.getLatestCustomerOrder();
         ActiveOrderRecord activeRecord = findActiveOrderRecord(activeOrder);
         if (activeOrder == null && activeRecord != null) {
@@ -201,6 +209,7 @@ public class OperationsController {
         Map<String, Object> riderLocation = graphLocation(resolveRiderNodeId(activeRecord, rider, pickupNodeId));
 
         Map<String, Object> payload = new LinkedHashMap<>();
+        // Keep duplicate field names because older frontend screens expect slightly different keys.
         payload.put("hasActiveOrder", activeOrder != null);
         payload.put("active", activeOrder != null);
         payload.put("orderId", activeOrder == null ? "" : activeOrder.orderId);
@@ -279,6 +288,7 @@ public class OperationsController {
 
     @GetMapping("/users/{userId}")
     public ResponseEntity<User> getUserById(@PathVariable String userId) {
+        // Build a small UserHashMap here to demonstrate O(1) lookup by userId.
         UserHashMap userLookup = new UserHashMap();
         for (User user : userRepository.findAll()) {
             userLookup.put(user.getUserId(), user);
@@ -359,6 +369,7 @@ public class OperationsController {
 
     @GetMapping("/locations")
     public List<Map<String, Object>> getLocations() {
+        // These IDs are the public map markers exposed to the frontend from the UMGraph.
         return List.of(
             graphLocation("NODE_KK8"),
             graphLocation("NODE_CAFE_KK8"),
@@ -451,6 +462,7 @@ public class OperationsController {
             return location("", "", 0, 0);
         }
 
+        // UMGraph remains the source of coordinates for routing and map pins.
         GraphNode node = deliveryService.getCampusMap().getNodeById(nodeId);
         if (node == null) {
             return location(nodeId, nodeId, 0, 0);
@@ -460,6 +472,7 @@ public class OperationsController {
     }
 
     private Map<String, Object> quoteFees(String restaurantId, String deliveryNodeId) {
+        // Fee preview uses the same graph distance calculation as real checkout.
         Order feeOrder = new Order();
         feeOrder.restaurantId = restaurantId;
         feeOrder.deliveryNodeId = deliveryNodeId;
@@ -472,6 +485,7 @@ public class OperationsController {
     }
 
     private List<Order> getActiveOrdersForMonitoring() {
+        // Merge runtime queue data with active DB records, avoiding duplicate rows.
         List<Order> orders = new ArrayList<>(deliveryService.getOrderQueue().toList());
         for (ActiveOrderRecord record : activeOrderRepository.findByActiveTrueOrderByTimestampAsc()) {
             if (!containsOrder(orders, record.getOrderId())) {
@@ -486,6 +500,7 @@ public class OperationsController {
     }
 
     private RouteSummary getDbBackedLatestRoute() {
+        // Prefer live route if available; otherwise rebuild from the active DB record.
         RouteSummary route = deliveryService.getLatestRouteSummary();
         if (route != null) {
             return route;
@@ -551,6 +566,7 @@ public class OperationsController {
     }
 
     private List<MenuItem> getMenuItemsFromDatabase() {
+        // Hydrate MenuBST from H2, then return the tree's sorted traversal.
         MenuBST menuDatabase = new MenuBST();
         for (MenuItem item : menuItemRepository.findAll()) {
             menuDatabase.insert(item);
@@ -591,6 +607,7 @@ public class OperationsController {
             return null;
         }
 
+        // Rebuild the same rider -> pickup -> drop-off route using saved node IDs.
         String riderNodeId = resolveRiderNodeId(record, rider, pickupNodeId);
         String resolvedPickupNodeId = normalizeKnownNodeId(pickupNodeId, "NODE_UM_CENTRAL");
         String resolvedDropoffNodeId = normalizeKnownNodeId(dropoffNodeId, "NODE_KK12_BLOCK_A");
@@ -620,6 +637,7 @@ public class OperationsController {
         int secondPathStart = secondPath.length > 0 ? 1 : 0;
         GraphNode[] combinedPath = new GraphNode[firstPath.length + secondPath.length - secondPathStart];
 
+        // Skip the first node from the second path so the pickup point appears once.
         for (int i = 0; i < firstPath.length; i++) {
             combinedPath[i] = firstPath[i];
         }
@@ -642,6 +660,7 @@ public class OperationsController {
             return fallbackNodeId;
         }
 
+        // UI/seed aliases are converted into real UMGraph node IDs before routing.
         String resolvedNodeId = switch (nodeId) {
             case "CENTRAL_EATERY" -> "NODE_UM_CENTRAL";
             case "ENGINEERING_QUAD" -> "NODE_ENGINEERING";

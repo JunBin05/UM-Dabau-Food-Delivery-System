@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 
 const nodeRows = [
+  // This page is a local demo surface, so these rows are intentionally not backend state.
   { id: "N-A104", zone: "North Campus", base: "1.0", active: "1.2", status: "Healthy" },
   { id: "N-B221", zone: "Engineering Quad", base: "1.0", active: "4.5", status: "Congested" },
   { id: "N-C099", zone: "Library Hub", base: "1.5", active: "1.5", status: "Healthy" },
@@ -24,6 +25,7 @@ export default function DevModeSpoofer() {
   const [lastAction, setLastAction] = useState("Ready for simulated admin controls");
 
   const handleInjection = (label) => {
+    // Keep demo actions local so they do not disturb real OrderQueue/RiderHeap/graph state.
     setLastAction(`${label} queued locally for demo`);
   };
 

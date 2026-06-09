@@ -14,6 +14,7 @@ const categoryOptions = ["Cafe", "Malay", "Malay Snacks", "Chinese", "Western", 
 const statusOptions = ["Open", "Closed"];
 
 function displayNodeId(nodeId = "") {
+  // Keep the full nodeId in the database, but shorten it for card readability.
   return nodeId
     .replace(/^NODE_/, "")
     .replace(/^WAYPOINT_/, "Waypoint ")
@@ -29,6 +30,7 @@ export default function RestaurantManagement() {
   const openCount = useMemo(() => restaurantRows.filter((restaurant) => restaurant.status === "Open").length, [restaurantRows]);
 
   function loadRestaurants() {
+    // Restaurants are persisted in H2 and synchronized with the custom RestaurantList backend.
     fetchJson("/live/restaurants")
       .then(setRestaurantRows)
       .catch((error) => console.error("Failed to load restaurants:", error));
@@ -52,6 +54,7 @@ export default function RestaurantManagement() {
 
   function handleSubmit(event) {
     event.preventDefault();
+    // In edit mode the path ID is used by the backend as the fixed primary key.
     const cleanedRestaurant = {
       ...form,
       restaurantId: form.restaurantId.trim(),
@@ -70,6 +73,7 @@ export default function RestaurantManagement() {
   }
 
   function handleEdit(restaurant) {
+    // Fill the form from the selected card while preserving the original restaurantId.
     setEditingId(restaurant.restaurantId);
     setForm({
       restaurantId: restaurant.restaurantId,
@@ -82,6 +86,7 @@ export default function RestaurantManagement() {
   }
 
   function handleDelete(restaurantId) {
+    // Reload after delete so the card grid always reflects backend state.
     deleteJson(`/live/restaurants/${restaurantId}`)
       .then(() => {
         loadRestaurants();

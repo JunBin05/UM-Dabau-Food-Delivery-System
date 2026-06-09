@@ -35,7 +35,7 @@ public class Order {
         this.restaurantId = restaurantId;
         this.deliveryNodeId = deliveryNodeId;
         
-        // Default system initializations
+        // Default values before checkout/dispatch changes the order state.
         this.assignedRiderId = null;                 // No rider assigned initially
         this.cart = new ArrayList<>();               // Snapshot list populated during checkout
         this.totalPrice = 0.0;                       // Starts at zero

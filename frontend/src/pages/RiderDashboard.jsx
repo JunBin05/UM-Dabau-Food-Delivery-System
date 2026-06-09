@@ -7,6 +7,7 @@ function routeStorageKey(orderId) {
 }
 
 function getStoredRouteStartTime(orderId) {
+  // Reuse the same clock as customer tracking so both pages show the rider in the same place.
   if (!orderId) {
     return Date.now();
   }
@@ -38,12 +39,14 @@ export default function RiderDashboard({ view = "riderMain" }) {
   const order = summary.assignedOrder || {};
   const route = summary.latestRoute;
   const routeFinalIndex = Math.max((route?.path?.length || 1) - 1, 0);
+  // The backend provides the RouteSummary; the UI only advances the rider marker along it.
   const routeDriverIndex = routeStartTime > 0
     ? Math.min(Math.max(Math.floor((simulationNow - routeStartTime) / DRIVER_STEP_MS), 0), routeFinalIndex)
     : 0;
 
   function loadSummary() {
     setMapError("");
+    // Rider summary includes the assigned order, RiderHeap count, and latest Dijkstra route.
     fetchJson("/live/rider/summary")
       .then((data) => {
         setSummary(data);
@@ -64,6 +67,7 @@ export default function RiderDashboard({ view = "riderMain" }) {
   }
 
   function clockIn() {
+    // Clock-in sends this rider back to the backend so RiderHeap can consider them for dispatch.
     postJson("/dispatch/rider/clock-in?distanceToRestaurant=1", {
       userId: "USR-002",
       fullName: "Rafiq Lim",
@@ -93,6 +97,7 @@ export default function RiderDashboard({ view = "riderMain" }) {
       return undefined;
     }
 
+    // Advance the display marker only while the route is still in progress.
     const timer = window.setInterval(() => {
       setSimulationNow(Date.now());
     }, DRIVER_STEP_MS);

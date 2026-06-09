@@ -5,32 +5,35 @@ import java.util.Map;
 
 import com.umdabau.models.Restaurant;
 
+/**
+ * Hash table helper for restaurant lookup by restaurantId.
+ * RestaurantList keeps the linked-list structure; this class adds fast ID access.
+ */
 public class RestaurantHashMap {
     
-    // We import and use the standard Java HashMap
+    // Key = restaurantId, value = restaurant record.
     private Map<String, Restaurant> map;
 
     public RestaurantHashMap() {
-        // Initialize the empty hash table
         this.map = new HashMap<>();
     }
 
-    // 1. Key-Value Usage (Inserting Data)
+    // Store or replace a restaurant in the index.
     public void put(String key, Restaurant restaurant) {
         map.put(key, restaurant);
     }
 
-    // 2. Fast Data Access O(1) (Retrieving Data)
+    // Average O(1) lookup by restaurantId.
     public Restaurant get(String key) {
-        return map.get(key); // Instant jump, no loops!
+        return map.get(key);
     }
 
-    // 3. Useful for checking if a restaurant exists instantly O(1)
+    // Used for duplicate checks before inserting into the linked list.
     public boolean contains(String key) {
         return map.containsKey(key);
     }
     
-    // 4. Delete restaurant in O(1) time
+    // Remove stale index entries when the linked list deletes a restaurant.
     public void remove(String key) {
         map.remove(key);
     }

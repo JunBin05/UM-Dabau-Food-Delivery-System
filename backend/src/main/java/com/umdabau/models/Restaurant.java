@@ -4,6 +4,10 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+/**
+ * Restaurant record persisted in H2.
+ * nodeId connects the restaurant to the UMGraph pickup location.
+ */
 @Entity
 @Table(name = "restaurants")
 public class Restaurant {

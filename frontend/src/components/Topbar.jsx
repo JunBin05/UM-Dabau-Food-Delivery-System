@@ -1,6 +1,7 @@
 import React from "react";
 import { pageTitles, roleMeta } from "../config/navigation.js";
 
+// Topbar stays present for every logged-in role and reads labels from navigation config.
 export default function Topbar({ role, currentPage }) {
   const meta = roleMeta[role] ?? roleMeta.customer;
 

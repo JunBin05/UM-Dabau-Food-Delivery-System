@@ -61,6 +61,7 @@ public class CartStack {
 
     private StackNode top; // Tracks the most recently added item
     private int size;      // Tracks the number of items in the cart
+    // Separate stack for undo history. This lets undo reverse add/remove actions in LIFO order.
     private ActionNode undoTop;
     private int undoSize;
 
@@ -103,10 +104,12 @@ public class CartStack {
             return null;
         }
 
+        // If the target is already on top, reuse normal pop so the stack pointer stays correct.
         if (isSameItem(top.item, targetItem)) {
             return pop();
         }
 
+        // Walk the linked nodes until the first matching item is found, then skip that node.
         StackNode previous = top;
         StackNode current = top.next;
 
@@ -131,12 +134,14 @@ public class CartStack {
 
         int removedCount = 0;
 
+        // Remove matching items from the top first because there is no previous node there.
         while (top != null && isSameItem(top.item, targetItem)) {
             top = top.next;
             size--;
             removedCount++;
         }
 
+        // Continue through the rest of the linked stack and reconnect around matching nodes.
         StackNode previous = top;
         StackNode current = top == null ? null : top.next;
 
@@ -157,6 +162,7 @@ public class CartStack {
     }
 
     public void pushUndoAction(MenuItem item, String actionType, int quantity) {
+        // The latest cart operation is always the first one to undo.
         ActionNode newNode = new ActionNode(new CartAction(item, actionType, Math.max(quantity, 1)));
         newNode.next = undoTop;
         undoTop = newNode;
@@ -229,6 +235,7 @@ public class CartStack {
         List<MenuItem> items = new ArrayList<>();
         StackNode current = top;
 
+        // Keep stack order as-is, with the latest item first.
         while (current != null) {
             items.add(current.item);
             current = current.next;
@@ -249,6 +256,7 @@ public class CartStack {
             return firstItemId.equals(secondItemId);
         }
 
+        // Fallback for older payloads that may not include itemId.
         return firstItem.getName() != null && firstItem.getName().equals(secondItem.getName());
     }
 }

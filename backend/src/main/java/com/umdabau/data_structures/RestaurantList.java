@@ -5,12 +5,16 @@ import java.util.List;
 
 import com.umdabau.models.Restaurant;
 
+/**
+ * Custom singly linked list for restaurants.
+ * A small hash map index sits beside the list for fast lookup by restaurantId.
+ */
 public class RestaurantList {
     private RestaurantNode head;
     private RestaurantNode tail;
     private int size;
 
-    // 🌟 THE FAST O(1) WRAPPER INDEX
+    // Shared fast index for the whole restaurant list.
     private RestaurantHashMap restaurantIndex;
 
     private static class RestaurantNode {
@@ -27,7 +31,7 @@ public class RestaurantList {
         head = null;
         tail = null;
         size = 0;
-        restaurantIndex = new RestaurantHashMap(); // Initialize the wrapper
+        restaurantIndex = new RestaurantHashMap();
     }
 
     // Add at the end using tail: O(1), after duplicate ID checking: O(1)
@@ -36,7 +40,7 @@ public class RestaurantList {
             return false;
         }
 
-        // 🌟 FAST DUPLICATE CHECK USING HASHMAP: O(1)
+        // Fast duplicate check before adding a new linked-list node.
         if (restaurantIndex.contains(restaurant.getRestaurantId())) {
             return false;
         }
@@ -53,7 +57,7 @@ public class RestaurantList {
 
         size++;
         
-        // 🌟 ADD TO THE HASHMAP INDEX FOR FUTURE FAST RETRIEVAL
+        // Keep the index in sync with the linked list.
         restaurantIndex.put(restaurant.getRestaurantId(), restaurant);
         return true;
     }
@@ -64,7 +68,7 @@ public class RestaurantList {
             return null;
         }
 
-        // 🌟 OPTIMIZED RETRIEVAL: Instant jump, no while loops!
+        // Lookup uses the hash map index instead of scanning every node.
         return restaurantIndex.get(restaurantId);
     }
 
@@ -80,7 +84,7 @@ public class RestaurantList {
             if (updatedRestaurant.getRestaurantId().equals(current.data.getRestaurantId())) {
                 current.data = updatedRestaurant;
                 
-                // 🌟 UPDATE THE HASHMAP AS WELL
+                // Replace the indexed object too, otherwise lookup may return old data.
                 restaurantIndex.put(updatedRestaurant.getRestaurantId(), updatedRestaurant);
                 return true;
             }
@@ -113,7 +117,7 @@ public class RestaurantList {
 
                 size--;
                 
-                // 🌟 REMOVE FROM HASHMAP INDEX
+                // Remove the ID from the fast index after the node is unlinked.
                 restaurantIndex.remove(restaurantId);
                 return true;
             }
@@ -151,6 +155,7 @@ public class RestaurantList {
     }
 
     public List<Restaurant> toList() {
+        // AbstractList gives callers a List view without copying the linked-list data.
         return new AbstractList<Restaurant>() {
             @Override
             public Restaurant get(int index) {
@@ -179,7 +184,7 @@ public class RestaurantList {
         tail = null;
         size = 0;
         
-        // 🌟 CLEAR THE HASHMAP TOO
+        // A fresh index avoids keeping references to restaurants that were just cleared.
         restaurantIndex = new RestaurantHashMap();
     }
 }

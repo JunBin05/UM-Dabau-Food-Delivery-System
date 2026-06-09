@@ -25,7 +25,11 @@ import com.umdabau.repository.ActiveOrderRepository;
 import com.umdabau.repository.RestaurantRepository;
 import com.umdabau.repository.UserRepository;
 
-@Service // <-- This tells Spring Boot to create EXACTLY ONE instance of this class to share!
+/**
+ * Central runtime service for the delivery flow.
+ * The database stores records, while these custom structures handle assignment and routing logic.
+ */
+@Service
 public class DeliveryService {
     private static final String DEFAULT_RIDER_NODE_ID = "NODE_FSKTM";
     private static final String DEFAULT_RESTAURANT_NODE_ID = "NODE_UM_CENTRAL";
@@ -37,7 +41,7 @@ public class DeliveryService {
     private static final double PLATFORM_FEE_PER_KM = 0.25;
     private static final double MIN_PLATFORM_FEE = 0.30;
     
-    // The shared brain for the whole app
+    // Shared in-memory structures used by the assignment logic after DB records are loaded.
     private final OrderQueue globalOrderQueue = new OrderQueue();
     private final RiderHeap globalRiderHeap = new RiderHeap(100);
     private final UMGraph campusMap = new UMGraph(120);
@@ -64,6 +68,7 @@ public class DeliveryService {
 
     @EventListener(ApplicationReadyEvent.class)
     public synchronized void hydrateRuntimeData() {
+        // Rebuild the runtime structures from H2 so restart/pull does not lose app state.
         users.clear();
         restaurants.clear();
 
@@ -78,6 +83,7 @@ public class DeliveryService {
         for (User user : userRepository.findAll()) {
             users.addUser(user);
             if (isAvailableRider(user)) {
+                // Available riders enter the heap with a priority based on distance to a default pickup point.
                 globalRiderHeap.insert(user, getDistanceToRestaurant(user, DEFAULT_RESTAURANT_NODE_ID));
             }
         }
@@ -87,6 +93,7 @@ public class DeliveryService {
         }
 
         for (ActiveOrderRecord record : activeOrderRepository.findByActiveTrueAndStatusOrderByTimestampAsc("PENDING_DISPATCH")) {
+            // Pending DB orders go back into FIFO order processing after restart.
             globalOrderQueue.enqueue(toOrder(record));
         }
 
@@ -157,6 +164,7 @@ public class DeliveryService {
         Order orderToAssign = globalOrderQueue.peek();
         String restaurantNode = getRestaurantNode(orderToAssign);
 
+        // Re-score riders against this restaurant before choosing the best one.
         ensureAvailableRider(restaurantNode);
         reprioritizeRidersForRestaurant(restaurantNode);
 
@@ -176,6 +184,7 @@ public class DeliveryService {
         String riderNode = getStartNode(bestRider);
         String customerNode = getCustomerNode(nextOrder);
 
+        // Route is split into rider -> restaurant and restaurant -> customer, then joined.
         RouteSummary riderToRestaurant = campusMap.runDijkstra(
             riderNode,
             restaurantNode,
@@ -215,6 +224,7 @@ public class DeliveryService {
         }
 
         if (rider != null) {
+            // After delivery, the rider becomes available again at the customer drop-off node.
             rider.setAvailable(true);
             rider.setStatus("Active");
             rider.setCurrentNodeId(latestDropoffNodeId == null ? DEFAULT_DELIVERY_NODE_ID : latestDropoffNodeId);
@@ -239,6 +249,7 @@ public class DeliveryService {
     }
 
     public User clockInRider(User rider, double distanceToRestaurant) {
+        // Clock-in writes the rider to DB and also inserts them into the runtime heap.
         rider.setRole("Rider");
         rider.setStatus("Active");
         rider.setAvailable(true);
@@ -254,6 +265,7 @@ public class DeliveryService {
     }
 
     private void hydrateLatestActiveAssignment() {
+        // Restore the newest active assignment so tracking still works after backend restart.
         activeOrderRepository.findTopByActiveTrueOrderByTimestampDesc().ifPresent((record) -> {
             Order order = toOrder(record);
             latestCustomerOrder = order;
@@ -325,6 +337,7 @@ public class DeliveryService {
         String dropoffNode = normalizeNodeId(record.getDropoffNodeId(), DEFAULT_DELIVERY_NODE_ID);
 
         try {
+            // Recalculate path from saved node IDs instead of storing a large route blob in the DB.
             RouteSummary riderToRestaurant = campusMap.runDijkstra(
                 riderNode,
                 pickupNode,
@@ -346,6 +359,7 @@ public class DeliveryService {
     private void reprioritizeRidersForRestaurant(String restaurantNode) {
         List<User> availableRiders = new ArrayList<>();
 
+        // Empty and rebuild the heap so priority is based on the current restaurant.
         while (!globalRiderHeap.isEmpty()) {
             User rider = globalRiderHeap.pop();
             if (rider != null && rider.isAvailable()) {
@@ -375,6 +389,7 @@ public class DeliveryService {
     }
 
     public List<User> spawnSimulationRiders(String requestedNodeId, int requestedCount) {
+        // Demo helper: creates temporary riders when the heap is empty during testing.
         int count = Math.max(1, Math.min(requestedCount, 25));
         String nodeId = normalizeNodeId(requestedNodeId, DEFAULT_RIDER_NODE_ID);
         List<User> spawnedRiders = new ArrayList<>();
@@ -489,6 +504,7 @@ public class DeliveryService {
             return fallbackNodeId;
         }
 
+        // Accept older/simple IDs from seed data or UI and map them to graph node IDs.
         String resolvedNodeId = switch (nodeId) {
             case "CENTRAL_EATERY" -> "NODE_UM_CENTRAL";
             case "ENGINEERING_QUAD" -> "NODE_ENGINEERING";
@@ -534,6 +550,7 @@ public class DeliveryService {
         int secondPathStart = secondPath.length > 0 ? 1 : 0;
         GraphNode[] combinedPath = new GraphNode[firstPath.length + secondPath.length - secondPathStart];
 
+        // Skip the first node of the second route so the pickup node is not duplicated.
         for (int i = 0; i < firstPath.length; i++) {
             combinedPath[i] = firstPath[i];
         }

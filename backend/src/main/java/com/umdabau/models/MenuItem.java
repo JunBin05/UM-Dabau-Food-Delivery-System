@@ -4,10 +4,13 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+/**
+ * Menu item stored in H2 and loaded into MenuBST for menu search/display.
+ */
 @Entity
 @Table(name = "menu_items")
 public class MenuItem {
-    // 🚨 synchronized with API_CONTRACT.md
+    // Field names match the JSON keys expected by the frontend.
     @Id
     private String itemId;
     private String restaurantId;
@@ -32,7 +35,7 @@ public class MenuItem {
         this.imageUrl = imageUrl;
     }
 
-    // Getters exactly matching JSON keys
+    // Getters keep JSON output stable for the React app.
     public String getItemId() { return itemId; }
     public String getRestaurantId() { return restaurantId; }
     public String getName() { return name; }

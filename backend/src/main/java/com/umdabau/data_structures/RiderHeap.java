@@ -10,7 +10,7 @@ import com.umdabau.models.User;
 /**
  * RiderHeap implements a Min-Heap using Java's built-in PriorityQueue to manage delivery riders.
  * It prioritizes riders based on the lowest distance/time score.
- * This guarantees O(1) retrieval of the best rider and O(log n) insertion/extraction.
+ * The best rider is always the rider with the smallest priority score.
  */
 public class RiderHeap {
 
@@ -82,6 +82,7 @@ public class RiderHeap {
     public List<User> toList() {
         List<User> riders = new ArrayList<>();
 
+        // PriorityQueue iteration is not sorted, but this is enough for display/counting purposes.
         for (RiderNode node : queue) {
             riders.add(node.rider);
         }

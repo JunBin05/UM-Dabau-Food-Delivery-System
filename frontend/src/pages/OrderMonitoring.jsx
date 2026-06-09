@@ -4,6 +4,7 @@ import { fetchJson, postJson } from "../api/liveApi.js";
 const filters = ["All", "Pending", "Dispatched"];
 
 function getStatusTone(status) {
+  // Keep status colors in one place so the table stays consistent.
   if (status === "PENDING_DISPATCH") return "amber";
   if (status === "DELIVERED") return "green";
   return "blue";
@@ -15,6 +16,7 @@ export default function OrderMonitoring() {
   const [lastSync, setLastSync] = useState("Ready");
 
   function loadOrders() {
+    // This endpoint merges the live OrderQueue view with persisted active-order rows.
     return fetchJson("/live/orders")
       .then((data) => {
         setMonitoring(data);
@@ -27,6 +29,7 @@ export default function OrderMonitoring() {
   }
 
   function assignNextOrder() {
+    // Dispatch assignment is handled by the backend using OrderQueue, RiderHeap, and graph routing.
     postJson("/dispatch/assign")
       .then(() => loadOrders())
       .catch((error) => {
@@ -40,6 +43,7 @@ export default function OrderMonitoring() {
   }, []);
 
   const visibleRows = useMemo(() => monitoring.orders.filter((row) => {
+    // Filters are UI-only; the backend still owns the actual queue state.
     if (activeFilter === "Pending") return row.status === "PENDING_DISPATCH";
     if (activeFilter === "Dispatched") return row.status === "DISPATCHED";
     return true;

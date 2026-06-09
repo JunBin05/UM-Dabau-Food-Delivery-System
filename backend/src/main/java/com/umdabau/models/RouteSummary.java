@@ -1,5 +1,9 @@
 package com.umdabau.models;
 
+/**
+ * Result returned by Dijkstra after calculating a delivery route.
+ * The path is an ordered array of graph nodes from start to destination.
+ */
 public class RouteSummary {
     private String orderId;
     private String assignedRiderId;
@@ -7,11 +11,11 @@ public class RouteSummary {
     private double totalDistanceKm;
     private double estimatedTimeMinutes;
 
-    // 1. Default Constructor (Best practice for Spring Boot)
+    // Default constructor lets Spring/Jackson serialize and deserialize this object.
     public RouteSummary() {
     }
 
-    // 2. Parameterized Constructor (Used by your Dijkstra algorithm)
+    // Used by UMGraph after it rebuilds the shortest path.
     public RouteSummary(String orderId, String assignedRiderId, GraphNode[] path, double totalDistanceKm,
             double estimatedTimeMinutes) {
         this.orderId = orderId;
@@ -21,7 +25,7 @@ public class RouteSummary {
         this.estimatedTimeMinutes = estimatedTimeMinutes;
     }
 
-    // 3. Getters and Setters (CRITICAL for JSON Serialization)
+    // Getters and setters keep the route response JSON-friendly.
     public String getOrderId() {
         return orderId;
     }

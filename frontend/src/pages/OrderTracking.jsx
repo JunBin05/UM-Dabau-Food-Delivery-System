@@ -7,6 +7,7 @@ function trackingStorageKey(orderId) {
 }
 
 function getStoredStartTime(orderId, fallbackStartTime) {
+  // Keep the simulated rider movement steady across refreshes for the same order.
   if (!orderId) {
     return Date.now();
   }
@@ -30,6 +31,7 @@ function findNodeIndex(path, nodeId, fallbackIndex) {
 }
 
 function getPhase(hasActiveOrder, hasRoute, driverIndex, pickupIndex, finalIndex) {
+  // UI wording is based on where the rider is along the route path.
   if (!hasActiveOrder) {
     return {
       headline: "No order right now",
@@ -100,6 +102,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
   const route = tracking.route;
   const path = route?.path || [];
   const trackingItems = tracking.items || tracking.orderItems || [];
+  // Accept a few backend field names so older and newer tracking responses both render.
   const hasActiveOrder = Boolean(
     tracking.hasActiveOrder
     || tracking.active
@@ -109,6 +112,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
   );
   const hasRoute = hasActiveOrder && path.length > 1;
   const finalIndex = Math.max(path.length - 1, 0);
+  // Move one graph-node step at a time; DeliveryMapView uses the same index for the rider marker.
   const driverIndex = routeStartTime > 0
     ? Math.min(Math.max(Math.floor((simulationNow - routeStartTime) / DRIVER_STEP_MS), 0), finalIndex)
     : 0;
@@ -137,6 +141,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
   function loadTracking() {
     setIsLoading(true);
     setLoadError("");
+    // Customer tracking is the source of truth after checkout.
     return fetchJson("/live/customer/tracking")
       .then((data) => {
         setTracking(data);
@@ -152,6 +157,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
   }
 
   function loadMapData() {
+    // With no active order, show real rider locations instead of fake cafe/order markers.
     return Promise.all([
       fetchJson("/live/locations"),
       fetchJson("/live/users").catch(() => [])
@@ -182,6 +188,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
   function markOrderReceived() {
     setIsCompletingOrder(true);
     setCompletionMessage("");
+    // Completing an order clears the active DB-backed tracking state, then shows the rating modal.
     postJson("/orders/received")
       .then((result) => {
         if (route?.orderId) {
@@ -213,6 +220,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
       return undefined;
     }
 
+    // The timer only advances the front-end marker; the route itself still comes from the backend.
     const timer = window.setInterval(() => {
       setSimulationNow(Date.now());
     }, DRIVER_STEP_MS);
@@ -221,6 +229,7 @@ export default function OrderTracking({ onNavigate = () => {} }) {
   }, [driverIndex, finalIndex, hasRoute]);
 
   const trackingSteps = [
+    // The second line under each step is intentionally separate so long names do not jam together.
     { label: "Driver found", time: order.rider || "Assigned", done: Boolean(route), active: phase.activeStep === 0 },
     { label: "Moving to cafe", time: pickupNode?.name || "Pickup", done: phase.activeStep > 1, active: phase.activeStep === 1 },
     { label: "Order picked up", time: pickupNode?.name || "Cafe", done: phase.activeStep > 2, active: phase.activeStep === 2 },

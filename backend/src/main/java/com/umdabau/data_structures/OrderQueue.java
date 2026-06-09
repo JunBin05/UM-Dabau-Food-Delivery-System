@@ -108,6 +108,7 @@ public class OrderQueue {
         List<Order> orders = new ArrayList<>();
         QueueNode current = front;
 
+        // Walk from front to rear so the API shows the same order that dispatch will process.
         while (current != null) {
             orders.add(current.order);
             current = current.next;

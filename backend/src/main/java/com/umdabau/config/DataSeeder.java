@@ -10,6 +10,10 @@ import com.umdabau.repository.MenuItemRepository;
 import com.umdabau.repository.RestaurantRepository;
 import com.umdabau.repository.UserRepository;
 
+/**
+ * Seeds the local H2 database with starter data for a fresh clone.
+ * The local database file is ignored, so these records are what teammates receive on first run.
+ */
 @Component
 public class DataSeeder implements CommandLineRunner {
     private final UserRepository userRepository;
@@ -24,12 +28,14 @@ public class DataSeeder implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
+        // Each save method is idempotent: it updates the known ID instead of making duplicates.
         seedUsers();
         seedRestaurants();
         seedMenuItems();
     }
 
     private void seedUsers() {
+        // These users cover the demo roles and give riders real graph node positions.
         saveUser("USR-001", "Aina Rahman", "aina.rahman@student.um.edu.my", "Customer", "Active", false, "NODE_KK12_BLOCK_A");
         saveUser("USR-002", "Rafiq Lim", "rafiq.lim@rider.umdabau.local", "Rider", "Active", true, "NODE_FSKTM");
         saveUser("USR-003", "Mei Yee", "mei.yee@rider.umdabau.local", "Rider", "Active", true, "NODE_LIBRARY");
@@ -37,6 +43,7 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedRestaurants() {
+        // Restaurant node IDs link the database records back to UMGraph route locations.
         saveRestaurant("REST-001", "Campus Cafe", "Malay & Chinese", "Open", "KK8", "NODE_CAFE_KK8", "/assets/restaurants/campus-cafe.jpg");
         saveRestaurant("REST-002", "KK12 Quick Bites", "Malay Snacks", "Open", "Kolej Kediaman 12", "NODE_FOODY_AVENUE_HESHE12", "/assets/restaurants/kk12-quick-bites.jpg");
         saveRestaurant("REST-003", "Central Eatery Malay Corner", "Malay", "Open", "Central Eatery", "NODE_UM_CENTRAL", "/assets/restaurants/central-eatery.jpg");
@@ -59,6 +66,7 @@ public class DataSeeder implements CommandLineRunner {
     }
 
     private void seedMenuItems() {
+        // Menu IDs are stable so the cart can persist items by itemId.
         saveMenuItem("MENU-001", "REST-001", "KK8 Nasi Lemak", 8.90, "Malay", "/assets/food/nasi-lemak.jpg");
         saveMenuItem("MENU-002", "REST-001", "Cafe KK8 Iced Tea", 3.80, "Drinks", "/assets/food/iced-tea.jpg");
         saveMenuItem("MENU-003", "REST-002", "KK12 Chicken Rice", 8.50, "Chinese", "/assets/food/chicken-rice.jpg");

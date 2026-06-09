@@ -22,6 +22,7 @@ const routeByPath = {
 const browseCategories = ["All Items", "Malay", "Chinese", "Western", "Drinks", "Snacks", "Vegetarian", "More Filters"];
 const ordersApiUrl = "http://localhost:8080/api/orders";
 
+// Role metadata controls which dashboard opens after login.
 function getHomePage(roleId) {
   return roles.find((role) => role.id === roleId)?.homePage ?? "customer-dashboard";
 }
@@ -40,6 +41,7 @@ function getValidBrowseCategory(category) {
 }
 
 function updateBrowseQuery(category, search = "") {
+  // Keep category/search in the URL so Browse Menu can open directly with the same filters.
   const params = new URLSearchParams();
   const normalizedSearch = search.trim();
 
@@ -61,6 +63,7 @@ function getCartItemId(item, fallbackIndex = 0) {
 }
 
 function toCartLineItem(item, fallbackIndex = 0) {
+  // Backend and UI items are shaped slightly differently, so normalize before storing in state.
   return {
     id: getCartItemId(item, fallbackIndex),
     itemId: item.itemId || item.id,
@@ -86,6 +89,7 @@ function toMenuItemPayload(item) {
 }
 
 function normalizeCartItems(items) {
+  // The backend may return repeated stack entries; the UI groups them into quantity rows.
   return items.reduce((groupedItems, item, index) => {
     const lineItem = toCartLineItem(item, index);
     const existingItem = groupedItems.find((current) => current.id === lineItem.id);
@@ -101,6 +105,7 @@ function normalizeCartItems(items) {
 }
 
 export default function App() {
+  // Role/page are persisted so refresh keeps the user in the same section.
   const [role, setRole] = usePersistentState("um-dabau-role", "");
   const [currentPage, setCurrentPage] = usePersistentState("um-dabau-page", "customer-dashboard");
   const [browseCategory, setBrowseCategory] = useState(() => getValidBrowseCategory(new URLSearchParams(window.location.search).get("category")));
@@ -116,6 +121,7 @@ export default function App() {
   const refreshCartItems = useCallback(() => {
     setIsCartLoading(true);
 
+    // Cart items and undo state are fetched together so the cart button state stays accurate.
     const cartRequest = fetch(`${ordersApiUrl}/cart`)
       .then((response) => {
         if (!response.ok) {
@@ -148,6 +154,7 @@ export default function App() {
 
   function navigate(nextPage) {
     if (typeof nextPage === "object" && nextPage !== null) {
+      // Object navigation carries extra Browse Menu context such as category/search/restaurant.
       setCurrentPage(nextPage.page);
       const nextCategory = getValidBrowseCategory(nextPage.category);
       const nextSearch = nextPage.search || "";
@@ -220,6 +227,7 @@ export default function App() {
   }
 
   function addCartItem(menuItem) {
+    // Optimistic update makes the cart feel immediate, then backend state is reloaded.
     addOptimisticCartItem(menuItem);
 
     return fetch(`${ordersApiUrl}/cart/add`, {
@@ -294,6 +302,7 @@ export default function App() {
   }
 
   function undoLastCartItem() {
+    // Backend owns the real undo stack, so the UI refreshes from the returned cart result.
     return fetch(`${ordersApiUrl}/cart/undo`, {
       method: "POST"
     })
@@ -360,6 +369,7 @@ export default function App() {
 }
 
 function renderPage(page, role, onNavigate, onSelectRole, cartItems, addCartItem, removeCartItem, removeAllCartItems, refreshCartItems, undoLastCartItem, isUndoAvailable, isCartLoading, browseCategory, browseSearchTerm, browseRestaurantId) {
+  // Simple route switch: pages stay lightweight and receive only the callbacks they need.
   switch (page) {
     case "customer-dashboard":
       return <CustomerDashboard onNavigate={onNavigate} cartItems={cartItems} />;
@@ -394,6 +404,7 @@ function renderPage(page, role, onNavigate, onSelectRole, cartItems, addCartItem
 }
 
 function usePersistentState(key, initialValue) {
+  // Tiny localStorage helper used for role/page persistence.
   const [value, setValue] = useState(() => localStorage.getItem(key) || initialValue);
 
   useEffect(() => {

@@ -3,6 +3,7 @@ import { fetchJson } from "../api/liveApi.js";
 
 const CUSTOMER_ID = "USR-001";
 
+// The dashboard uses these small maps to keep category icons and colors consistent.
 const categoryIcons = {
   Malay: "rice_bowl",
   Chinese: "ramen_dining",
@@ -39,6 +40,7 @@ function ImageTile({ src, category, label, className = "" }) {
 
   return (
     <div className={`food-image-tile ${meta.tone} ${className}`}>
+      {/* Hide broken image URLs and let the category fallback still carry the card. */}
       {src && <img src={src} alt={label} onError={(event) => { event.currentTarget.hidden = true; }} />}
       <span className="food-fallback-emoji" aria-hidden="true">{meta.emoji}</span>
       <strong>{category || "Campus food"}</strong>
@@ -61,6 +63,8 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
   const cartCount = cartItems.reduce((total, item) => total + item.qty, 0);
   const cartTotal = cartItems.reduce((total, item) => total + item.qty * item.price, 0);
   const activeOrder = home.activeOrder || {};
+
+  // The hero and category rows are derived from backend data, then trimmed for display.
   const heroItems = useMemo(() => home.recommendedItems.slice(0, 3), [home.recommendedItems]);
   const visibleCategories = useMemo(() => {
     const preferredOrder = ["Malay", "Chinese", "Western", "Drinks", "Snacks", "Vegetarian", "Cafe", "Mamak"];
@@ -69,6 +73,7 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
   }, [home.categories]);
 
   useEffect(() => {
+    // Load the home payload, then patch in the saved customer drop-off node if one exists.
     Promise.all([
       fetchJson("/live/customer/home"),
       fetchJson("/live/users").catch(() => []),
@@ -101,6 +106,7 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
     setIsSearching(true);
     setSearchError("");
 
+    // This hits the backend MenuBST search endpoint instead of searching mock data locally.
     fetchJson(`/menu/search?name=${encodeURIComponent(query)}`)
       .then((results) => {
         const matchedItems = Array.isArray(results) ? results : [];
@@ -132,6 +138,7 @@ export default function CustomerDashboard({ onNavigate, cartItems = [] }) {
           <p className="eyebrow">UM-Dabau Food Delivery</p>
           <h2>Hi {home.customerName}, what would you like to eat?</h2>
           <p className="customer-hero-subtitle">Campus meals, drinks, and snacks delivered to your block.</p>
+          {/* Delivery point is changed from the cart page so it can be saved with the user record. */}
           <button className="location-chip" type="button" onClick={() => onNavigate("cart")} title="Change delivery location">
             <span className="material-symbols-outlined">location_on</span>
             Deliver to: {home.deliveryAddress}

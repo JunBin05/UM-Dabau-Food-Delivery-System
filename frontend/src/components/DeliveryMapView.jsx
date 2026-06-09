@@ -3,8 +3,10 @@ import L from "leaflet";
 import { MapContainer, Marker, Polyline, Popup, TileLayer } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 
+// Matches the simulated rider movement interval used by tracking pages.
 export const DRIVER_STEP_MS = 1400;
 
+// Leaflet divIcons let us use the same Material Symbols used by the rest of the UI.
 const markerIcons = {
   driver: L.divIcon({
     className: "delivery-map-marker driver-marker",
@@ -37,6 +39,7 @@ const markerIcons = {
 };
 
 function hasCoordinates(node) {
+  // Ignore missing/zero coordinates so Leaflet does not place markers at the wrong location.
   const latitude = Number(node?.latitude);
   const longitude = Number(node?.longitude);
   return Number.isFinite(latitude) && Number.isFinite(longitude) && !(latitude === 0 && longitude === 0);
@@ -66,12 +69,14 @@ export default function DeliveryMapView({
   showLocationsWhenNoRoute = true
 }) {
   const path = routeSummary?.path || [];
+  // Polyline expects an array of [lat, lng] pairs.
   const routePositions = useMemo(
     () => path.filter(hasCoordinates).map(positionFor),
     [path]
   );
   const finalIndex = Math.max(path.length - 1, 0);
   const safeDriverIndex = Math.min(Math.max(routeDriverIndex, 0), finalIndex);
+  // Prefer route nodes when a route exists, otherwise use explicit rider/pickup/drop-off nodes.
   const routeStart = hasCoordinates(path[safeDriverIndex]) ? path[safeDriverIndex] : null;
   const routePickup = path.find((node) => node.nodeId === pickupNodeId && hasCoordinates(node))
     || path.find((node) => hasCoordinates(node) && (node.nodeId?.includes("CAFE") || node.nodeId?.includes("FOOD") || node.nodeId?.includes("CENTRAL") || node.nodeId?.includes("ZUS")));
@@ -88,6 +93,7 @@ export default function DeliveryMapView({
         ? positionFor(visibleDropoffNode)
         : center;
   const hasRoute = Boolean(routeSummary && routePositions.length > 1);
+  // Changing the key forces Leaflet to recenter cleanly when the active route changes.
   const mapKey = routeSummary?.orderId || visiblePickupNode?.nodeId || visibleDropoffNode?.nodeId || "campus-map";
 
   return (
@@ -95,6 +101,7 @@ export default function DeliveryMapView({
       <MapContainer key={mapKey} center={mapCenter} zoom={15} style={{ height: "100%", width: "100%" }} zoomControl={false}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="&copy; OpenStreetMap" />
         {!hasRoute && showLocationsWhenNoRoute && locations.filter(hasCoordinates).map((location) => (
+          // Empty-state map can show known campus markers when a page asks for them.
           <Marker key={location.id || location.nodeId} icon={markerIcons.location} position={positionFor(location)}>
             <Popup>
               <strong>{location.name}</strong><br />
@@ -103,6 +110,7 @@ export default function DeliveryMapView({
           </Marker>
         ))}
         {!hasRoute && activeRiders.filter(hasCoordinates).map((rider) => (
+          // Customer no-order map shows rider locations instead of restaurant/cafe markers.
           <Marker key={rider.userId} icon={markerIcons.driver} position={positionFor(rider)}>
             <Popup>
               <strong>{rider.fullName}</strong><br />

@@ -5,6 +5,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 
+/**
+ * Persisted snapshot of an active delivery.
+ * Used to rebuild tracking and dispatch state after the backend restarts.
+ */
 @Entity
 @Table(name = "active_orders")
 public class ActiveOrderRecord {
@@ -28,6 +32,7 @@ public class ActiveOrderRecord {
     private boolean active;
 
     @Lob
+    // Stored as JSON because the order can contain several menu items.
     private String itemsJson;
 
     public ActiveOrderRecord() {

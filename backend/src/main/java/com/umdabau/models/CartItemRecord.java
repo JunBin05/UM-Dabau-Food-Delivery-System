@@ -6,6 +6,10 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+/**
+ * Persisted cart line item for one customer.
+ * Quantity is stored in H2, then expanded back into CartStack nodes when needed.
+ */
 @Entity
 @Table(name = "cart_items")
 public class CartItemRecord {

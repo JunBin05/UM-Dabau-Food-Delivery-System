@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { fetchJson } from "../api/liveApi.js";
 
+// "All Items" and "More Filters" are UI buckets, so they should not filter out real items.
 function categoryMatches(selectedCategory, category) {
   return selectedCategory === "All Items" || selectedCategory === "More Filters" || selectedCategory === category;
 }
@@ -30,6 +31,7 @@ function ImageTile({ src, category, label, className = "" }) {
 
   return (
     <div className={`food-image-tile ${meta.tone} ${className}`}>
+      {/* Food images are optional seed data; the fallback keeps the card readable if an image fails. */}
       {src && <img src={src} alt={label} onError={(event) => { event.currentTarget.hidden = true; }} />}
       <span className="food-fallback-emoji" aria-hidden="true">{meta.emoji}</span>
       <strong>{category || "Campus food"}</strong>
@@ -48,6 +50,7 @@ export default function BrowseMenu({ initialCategory = "All Items", initialSearc
   const [liveMenuData, setLiveMenuData] = useState([]);
 
   useEffect(() => {
+    // Menu items come from /api/menu and restaurants come from the live restaurant endpoint.
     Promise.all([
       fetchJson("/menu"),
       fetchJson("/live/restaurants")
@@ -55,6 +58,7 @@ export default function BrowseMenu({ initialCategory = "All Items", initialSearc
       .then(([menu, liveRestaurants]) => {
         setLiveMenuData(menu);
         setRestaurants(liveRestaurants);
+        // Build the category strip from database menu records so new seed data appears automatically.
         setCategories(["All Items", ...menu.map((item) => item.category).filter(Boolean).filter((category, index, list) => list.indexOf(category) === index), "More Filters"]);
         setSelectedRestaurant(initialRestaurantId ? liveRestaurants.find((restaurant) => restaurant.restaurantId === initialRestaurantId) || null : null);
       })
@@ -83,6 +87,7 @@ export default function BrowseMenu({ initialCategory = "All Items", initialSearc
   }
 
   function handleAdd(item) {
+    // Cart ownership stays in App.jsx, which also persists the add action through the backend.
     Promise.resolve(onCartAdd(item)).then((wasAdded) => {
       if (wasAdded !== false) {
         setLastAdded(item.name);
@@ -102,6 +107,7 @@ export default function BrowseMenu({ initialCategory = "All Items", initialSearc
   const visibleRestaurants = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
     return restaurants.filter((restaurant) => {
+      // A restaurant is shown when its own data or one of its database menu items matches.
       const restaurantItems = liveMenuData.filter((item) => item.restaurantId === restaurant.restaurantId);
       const categoryList = restaurantItems.map((item) => item.category);
       const matchesCategory = selectedCategory === "All Items" || selectedCategory === "More Filters" || categoryList.includes(selectedCategory);
@@ -115,6 +121,7 @@ export default function BrowseMenu({ initialCategory = "All Items", initialSearc
     if (!selectedRestaurant) return [];
     const normalizedSearch = searchTerm.trim().toLowerCase();
 
+    // Convert Java/backend MenuItem rows into the shape this page already renders.
     return liveMenuData
       .filter((javaItem) => javaItem.restaurantId === selectedRestaurant.restaurantId)
       .map((javaItem) => ({

@@ -1,3 +1,4 @@
+// Role metadata is kept here so login, sidebar, and topbar use the same labels.
 export const roles = [
   {
     id: "customer",
@@ -43,6 +44,7 @@ export const roleMeta = {
   }
 };
 
+// Each role gets its own page list; App.jsx decides which component to render for each id.
 export const navigationByRole = {
   customer: [
     { id: "customer-dashboard", label: "Customer Dashboard", icon: "dashboard" },
@@ -69,6 +71,7 @@ export const navigationByRole = {
   ]
 };
 
+// Human-readable titles for browser/profile hints and page-level labels.
 export const pageTitles = {
   "customer-dashboard": "Customer Dashboard",
   "browse-menu": "Browse Menu",

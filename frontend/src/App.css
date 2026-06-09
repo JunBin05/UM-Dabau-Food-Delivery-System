@@ -1,6 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap");
 
+/* Main UM-Dabau stylesheet. Sections below are grouped by app shell, maps, admin tools, cart/menu, rider, customer, and responsive states. */
 :root {
   --surface: #f6f9ff;
   --surface-low: #eef4fd;
@@ -57,6 +58,7 @@ button {
   vertical-align: middle;
 }
 
+/* Login and role selection screen. */
 .login-page {
   min-height: 100vh;
   display: grid;
@@ -471,6 +473,7 @@ button {
   display: flex;
 }
 
+/* Shared logged-in shell: sidebar, topbar, and page frame. */
 .sidebar {
   width: var(--sidebar-width);
   position: fixed;
@@ -1004,6 +1007,7 @@ button {
   opacity: 0.78;
 }
 
+/* Tracking summary map styles used by customer order tracking cards. */
 .map-pin {
   position: absolute;
   width: 28px;
@@ -1523,6 +1527,7 @@ button {
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
 }
 
+/* Admin CRUD management layouts for users and restaurants. */
 .management-layout {
   display: grid;
   grid-template-columns: minmax(300px, 0.85fr) minmax(0, 1.65fr);
@@ -1655,6 +1660,7 @@ button {
   font-weight: 800;
 }
 
+/* Customer cart, delivery location picker, and checkout summary. */
 .cart-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.75fr) minmax(300px, 0.75fr);
@@ -2314,6 +2320,7 @@ button {
   min-width: 210px;
 }
 
+/* Browse Menu restaurant and menu-card browsing experience. */
 .restaurant-browser-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
@@ -2708,6 +2715,7 @@ tbody tr:hover {
   justify-content: flex-end;
 }
 
+/* Leaflet live map surfaces shared by admin, rider, and customer map pages. */
 .live-map-dashboard {
   position: relative;
   min-height: calc(100vh - 184px);
@@ -3728,6 +3736,7 @@ tbody tr:hover {
   opacity: 0.5;
 }
 
+/* Rider dashboard, assigned delivery, zone, and routing panels. */
 .rider-dashboard-page {
   max-width: 1180px;
   margin: 0 auto;
@@ -4094,6 +4103,7 @@ tbody tr:hover {
   line-height: 1.4;
 }
 
+/* Customer home screen with hero search, category browse, and recommendations. */
 .customer-app-home {
   max-width: 1180px;
   margin: 0 auto;
@@ -4851,6 +4861,7 @@ tbody tr:hover {
   color: var(--muted);
 }
 
+/* Responsive adjustments keep dense admin/customer screens usable on smaller widths. */
 @media (max-width: 1120px) {
   .stat-grid.four,
   .stat-grid.three,

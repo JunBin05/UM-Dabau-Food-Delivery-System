@@ -8,6 +8,7 @@ export default function LoginRoleSelection({ onSelectRole }) {
 
   function handleSubmit(event) {
     event.preventDefault();
+    // Login is role-based for the assignment demo; no authentication is added here.
     onSelectRole(selectedRole);
   }
 
@@ -40,6 +41,7 @@ export default function LoginRoleSelection({ onSelectRole }) {
 
           <div className="login-section-label">Select Role</div>
           <div className="login-role-grid">
+            {/* The available roles are shared with the sidebar/navigation config. */}
             {roles.map((role) => (
               <button
                 className={`login-role-card ${selectedRole === role.id ? "selected" : ""}`}

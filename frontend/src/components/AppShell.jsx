@@ -2,6 +2,7 @@ import React from "react";
 import Sidebar from "./Sidebar.jsx";
 import Topbar from "./Topbar.jsx";
 
+// Common frame used after login so every role keeps the same shell layout.
 export default function AppShell({ role, currentPage, onNavigate, onLogout, children }) {
   return (
     <div className="app-shell">

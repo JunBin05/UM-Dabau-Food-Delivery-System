@@ -24,6 +24,7 @@ export default function UserManagement() {
   const riderCount = useMemo(() => userRows.filter((user) => user.role === "Rider").length, [userRows]);
 
   function loadUsers() {
+    // The list is read from H2 through the backend, then kept in UserList for the assignment layer.
     fetchJson("/live/users")
       .then(setUserRows)
       .catch((error) => console.error("Failed to load users:", error));
@@ -37,6 +38,7 @@ export default function UserManagement() {
   }, []);
 
   function updateField(field, value) {
+    // userId is the database primary key, so edit mode locks it on the frontend too.
     if (editingId && field === "userId") {
       return;
     }
@@ -55,6 +57,7 @@ export default function UserManagement() {
 
   function handleSubmit(event) {
     event.preventDefault();
+    // PUT always uses editingId from the selected row, not whatever is in the form field.
     const cleanedUser = {
       ...form,
       userId: editingId || form.userId.trim(),
@@ -75,6 +78,7 @@ export default function UserManagement() {
   }
 
   function handleEdit(user) {
+    // Store the original ID separately so the user cannot accidentally update into a new record.
     setEditingId(user.userId);
     setForm({
       userId: user.userId,
@@ -88,6 +92,7 @@ export default function UserManagement() {
   }
 
   function handleDelete(userId) {
+    // After delete, reload from the backend so the table reflects the persisted state.
     deleteJson(`/live/users/${userId}`)
       .then(() => {
         loadUsers();

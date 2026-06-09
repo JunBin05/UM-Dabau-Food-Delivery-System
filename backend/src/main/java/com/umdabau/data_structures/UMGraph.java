@@ -6,7 +6,10 @@ import java.io.IOException;
 import com.umdabau.models.GraphNode;
 import com.umdabau.models.RouteSummary;
 
-// The Graph Engine
+/**
+ * Campus road graph used by the dispatch flow.
+ * Vertices are UM places/waypoints, and each adjacency list stores the roads leaving that vertex.
+ */
 public class UMGraph {
 
     private GraphNode[] vertices;
@@ -53,6 +56,7 @@ public class UMGraph {
         double minTime = Double.MAX_VALUE;
         int minIndex = -1;
 
+        // Simple array-based Dijkstra step: choose the nearest node not finalized yet.
         for (int v = 0; v < numVertices; v++) {
             if (!visited[v] && times[v] <= minTime) {
                 minTime = times[v];
@@ -62,14 +66,12 @@ public class UMGraph {
         return minIndex;
     }
 
-    // =========================================================================
-    // THE ARCHITECT UPGRADE: Auto-Calculating Haversine Roads
-    // =========================================================================
+    // Adds roads in both directions, useful for normal campus roads that can be travelled both ways.
     private void addTwoWayRoad(GraphNode nodeA, GraphNode nodeB) {
         if (nodeA == null || nodeB == null)
             return;
 
-        // 1. Calculate precise distance using the Haversine formula
+        // Haversine gives distance from latitude/longitude without hardcoding every road length.
         double R = 6371.0; // Radius of the earth in km
         double latDistance = Math.toRadians(nodeB.latitude - nodeA.latitude);
         double lonDistance = Math.toRadians(nodeB.longitude - nodeA.longitude);
@@ -79,7 +81,7 @@ public class UMGraph {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         double distanceKm = R * c;
 
-        // 2. Calculate time (Assuming 25 km/h average speed on campus)
+        // Convert distance to estimated time using a fixed campus riding speed.
         double speedKmH = 25.0;
         double timeMinutes = (distanceKm / speedKmH) * 60.0;
 
@@ -91,14 +93,12 @@ public class UMGraph {
         addEdge(nodeB, nodeA, distanceKm, timeMinutes);
     }
 
-    // =========================================================================
-    // NEW: One-Way Road (Directed Edge)
-    // =========================================================================
+    // Adds only source -> destination, used for one-way roads in the UM campus route.
     private void addOneWayRoad(GraphNode sourceNode, GraphNode destNode) {
         if (sourceNode == null || destNode == null)
             return;
 
-        // 1. Calculate precise distance using the Haversine formula
+        // Same distance calculation as two-way roads, but only one directed edge is created.
         double R = 6371.0; // Radius of the earth in km
         double latDistance = Math.toRadians(destNode.latitude - sourceNode.latitude);
         double lonDistance = Math.toRadians(destNode.longitude - sourceNode.longitude);
@@ -108,7 +108,7 @@ public class UMGraph {
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         double distanceKm = R * c;
 
-        // 2. Calculate time (Assuming 25 km/h average speed on campus)
+        // Convert distance to estimated riding time.
         double speedKmH = 25.0;
         double timeMinutes = (distanceKm / speedKmH) * 60.0;
 
@@ -116,14 +116,14 @@ public class UMGraph {
         if (timeMinutes < 1)
             timeMinutes = 1;
 
-        // 3. THE DIFFERENCE: Only add ONE edge!
-        // The rider can go from Source -> Dest, but NOT Dest -> Source.
+        // The rider can go from source -> destination, but not the reverse direction.
         addEdge(sourceNode, destNode, distanceKm, timeMinutes);
     }
 
     public void addEdge(GraphNode sourceNode, GraphNode targetNode, double distanceKm, double baseTimeMinutes) {
         int sourceIndex = getNodeIndex(sourceNode);
         Edge newEdge = new Edge(targetNode, distanceKm, baseTimeMinutes);
+        // Insert at the head of this vertex's adjacency list.
         newEdge.nextEdge = adjacencyList[sourceIndex];
         adjacencyList[sourceIndex] = newEdge;
     }
@@ -151,6 +151,7 @@ public class UMGraph {
         shortestTimes[startIndex] = 0.0;
         totalDistances[startIndex] = 0.0;
 
+        // Dijkstra relaxes outgoing roads until the shortest known time to each node is final.
         for (int count = 0; count < numVertices - 1; count++) {
             int u = getMinTimeVertex(shortestTimes, visited);
             if (u == -1)
@@ -165,6 +166,7 @@ public class UMGraph {
                 if (!visited[v] && shortestTimes[u] != Double.MAX_VALUE) {
                     double newTime = shortestTimes[u] + currentEdge.baseTimeMinutes;
                     if (newTime < shortestTimes[v]) {
+                        // A faster route to v was found through u, so remember u as the previous step.
                         shortestTimes[v] = newTime;
                         totalDistances[v] = totalDistances[u] + currentEdge.distanceKm;
                         previousNodes[v] = u;
@@ -181,6 +183,7 @@ public class UMGraph {
             double totalDistance, double totalTime) {
         int stepCount = 0;
         int curr = endIndex;
+        // Count route nodes first so the fixed-size array can be filled from end to start.
         while (curr != -1) {
             stepCount++;
             curr = previousNodes[curr];
@@ -197,6 +200,7 @@ public class UMGraph {
     }
 
     public void initializeCampusMap() {
+        // The graph is intentionally hardcoded from UM campus waypoints and food/drop-off locations.
         GraphNode hubKk8Kk10 = new GraphNode("HUB_KK8_10", "KK8 & KK10 Main Road Junction", 3.1298838088323366,
                 101.65053856131739);
         addVertex(hubKk8Kk10);
@@ -739,7 +743,7 @@ public class UMGraph {
             writer.write("    <link rel='stylesheet' href='https://unpkg.com/leaflet@1.9.4/dist/leaflet.css' />\n");
             writer.write("    <script src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'></script>\n");
             
-            // 🚀 NEW: We add the PolylineDecorator library to draw arrows!
+            // PolylineDecorator draws arrows so one-way roads are easier to see in the generated map.
             writer.write("    <script src='https://unpkg.com/leaflet-polylinedecorator/dist/leaflet.polylineDecorator.js'></script>\n");
             
             writer.write("    <style>#map { height: 100vh; width: 100%; margin: 0; padding: 0; }</style>\n");
@@ -864,6 +868,7 @@ public class UMGraph {
     }
 
     public static void main(String[] args) {
+        // Small manual runner for checking graph wiring and generated map output.
         UMGraph graph = new UMGraph(120);
 
         graph.initializeCampusMap();
@@ -874,8 +879,7 @@ public class UMGraph {
         System.out.println("Dropoff: FSKTM");
         System.out.println("Calculating optimal route...\n");
 
-        // Notice I fixed the typo here: "NODE_ZUS" instead of "NODE_ZUS_COFFEE" so it
-        // doesn't crash
+        // Example route for a quick sanity check from cafe pickup to customer drop-off.
         RouteSummary result = graph.runDijkstra("NODE_ZUS", "NODE_FSKTM", "ORD-1049", "RIDER-99");
 
         System.out.println("==== ROUTE SUMMARY ====");

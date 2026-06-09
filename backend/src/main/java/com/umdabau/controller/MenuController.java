@@ -15,6 +15,9 @@ import com.umdabau.repository.MenuItemRepository;
 @RestController
 @RequestMapping("/api")
 @CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:5174", "http://127.0.0.1:5174"})
+/**
+ * Menu API reads menu records from H2, then hydrates MenuBST before returning results.
+ */
 public class MenuController {
     private final MenuItemRepository menuItemRepository;
 
@@ -24,6 +27,7 @@ public class MenuController {
 
     @GetMapping("/menu")
     public List<MenuItem> getFullMenu() {
+        // Return the tree traversal so Browse Menu receives items in BST order.
         return buildMenuDatabase().inOrderTraversal();
     }
 
@@ -35,12 +39,14 @@ public class MenuController {
         }
 
         MenuBST menuDatabase = buildMenuDatabase();
+        // Use the assignment's BST search first for exact name lookup.
         MenuItem exactMatch = menuDatabase.searchByName(searchName);
         if (exactMatch != null) {
             return List.of(exactMatch);
         }
 
         String normalizedSearch = searchName.toLowerCase();
+        // User search is usually partial, so keep a simple contains fallback after BST exact search.
         return menuDatabase.inOrderTraversal().stream()
                 .filter(item -> item.getName() != null && item.getName().toLowerCase().contains(normalizedSearch))
                 .toList();
@@ -48,6 +54,7 @@ public class MenuController {
 
     private MenuBST buildMenuDatabase() {
         MenuBST menuDatabase = new MenuBST();
+        // Database is storage; MenuBST is still the structure used for menu ordering/search.
         for (MenuItem item : menuItemRepository.findAll()) {
             menuDatabase.insert(item);
         }

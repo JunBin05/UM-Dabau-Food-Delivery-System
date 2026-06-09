@@ -24,13 +24,18 @@ import com.umdabau.models.User;
     allowedHeaders = "*",
     methods = {RequestMethod.GET, RequestMethod.POST, RequestMethod.OPTIONS}
 )
+/**
+ * Dispatch API exposes rider clock-in and manual assignment controls.
+ * The real queue/heap/graph work stays inside DeliveryService.
+ */
 public class DispatchController {
 
     @Autowired
-    private DeliveryService deliveryService; // <-- Shared brain!
+    private DeliveryService deliveryService;
 
     @PostMapping("/rider/clock-in")
     public ResponseEntity<String> clockInRider(@RequestBody User rider, @RequestParam double distanceToRestaurant) {
+        // Adds the rider to the DB-backed user list and the runtime RiderHeap.
         deliveryService.clockInRider(rider, distanceToRestaurant);
         return ResponseEntity.ok("Rider added to dispatch pool.");
     }
@@ -38,6 +43,7 @@ public class DispatchController {
     @PostMapping("/assign")
     public ResponseEntity<RouteSummary> assignNextOrder() {
         try {
+            // DeliveryService dequeues the next order, extracts the best rider, then runs Dijkstra.
             RouteSummary routeSummary = deliveryService.assignNextOrder();
             if (routeSummary == null) {
                 return ResponseEntity.badRequest().body(null);
@@ -50,6 +56,7 @@ public class DispatchController {
 
     @PostMapping("/riders/spawn")
     public ResponseEntity<Map<String, Object>> spawnSimulationRiders(@RequestBody SpawnRiderRequest request) {
+        // Demo helper for testing dispatch when no real rider is available.
         String nodeId = request != null ? request.nodeId : null;
         int count = request != null ? request.count : 1;
         List<User> spawnedRiders = deliveryService.spawnSimulationRiders(nodeId, count);

@@ -7,6 +7,7 @@ function trackingStorageKey(orderId) {
 }
 
 function getStoredStartTime(orderId) {
+  // Store the route start time locally so refreshing does not restart the rider animation.
   if (!orderId) {
     return Date.now();
   }
@@ -34,11 +35,13 @@ export default function LiveMap({ role = "admin", onNavigate = () => {} }) {
   const pageTitle = isAdmin ? "Live Map" : isCustomer ? "Delivery Map" : "Map Tracker";
   const eyebrow = isAdmin ? "Admin live map" : isCustomer ? "Full route map" : "Route tracker";
   const routeFinalIndex = Math.max((routeSummary?.path?.length || 1) - 1, 0);
+  // RouteSummary.path is already calculated by the backend graph; this only selects the visible step.
   const routeDriverIndex = routeStartTime > 0
     ? Math.min(Math.max(Math.floor((simulationNow - routeStartTime) / DRIVER_STEP_MS), 0), routeFinalIndex)
     : 0;
 
   function loadMapData() {
+    // Map markers and the latest route come from backend live endpoints, not frontend mock data.
     fetchJson("/live/locations")
       .then(setLocations)
       .catch((error) => console.error("Failed to load live locations:", error));
@@ -64,6 +67,7 @@ export default function LiveMap({ role = "admin", onNavigate = () => {} }) {
       return undefined;
     }
 
+    // Keep the rider marker moving while the active route still has remaining nodes.
     const timer = window.setInterval(() => {
       setSimulationNow(Date.now());
     }, DRIVER_STEP_MS);
@@ -91,6 +95,7 @@ export default function LiveMap({ role = "admin", onNavigate = () => {} }) {
 
       <section className="live-map-dashboard" style={{ position: "relative", height: "100%", minHeight: "600px", overflow: "hidden" }}>
         <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, zIndex: 0 }}>
+          {/* The map component is shared by admin, rider, and customer views. */}
           <DeliveryMapView
             activeRiders={activeRiders}
             dropoffNodeId={overview.dropoffNodeId}

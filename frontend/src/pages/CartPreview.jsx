@@ -4,6 +4,7 @@ import { fetchJson, postJson, putJson } from "../api/liveApi.js";
 const CUSTOMER_ID = "USR-001";
 
 function distanceKm(pointA, pointB) {
+  // Haversine distance, used only to choose the nearest saved delivery point in the browser.
   const earthRadiusKm = 6371;
   const toRadians = (value) => (value * Math.PI) / 180;
   const latDistance = toRadians(pointB.latitude - pointA.latitude);
@@ -29,6 +30,7 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
   useEffect(() => {
     onRefreshCart();
 
+    // Load cart page data in one pass: saved customer location, all map locations, and home fee defaults.
     Promise.all([
       fetchJson("/live/customer/home").catch((error) => {
         console.error("Failed to load delivery point:", error);
@@ -73,6 +75,7 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
 
     let isCancelled = false;
 
+    // Recalculate delivery fees whenever the cart restaurant or delivery node changes.
     postJson("/orders/fees", {
       restaurantId,
       deliveryNodeId: delivery.deliveryNodeId
@@ -99,6 +102,7 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
   }, [delivery.deliveryNodeId, items]);
 
   function saveDeliveryNode(nodeId, location) {
+    // Preferred endpoint stores location directly; fallback supports older backend versions.
     return putJson("/live/customer/location", { deliveryNodeId: nodeId })
       .catch((error) => {
         console.warn("Primary delivery location endpoint failed, falling back to user update:", error);
@@ -124,6 +128,7 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
   function selectDeliveryNode(nodeId, sourceMessage = "") {
     const location = locations.find((entry) => entry.nodeId === nodeId);
 
+    // Update the UI immediately, then persist the same node to the backend.
     setDelivery((current) => ({
       ...current,
       deliveryNodeId: nodeId,
@@ -168,6 +173,7 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
           latitude: position.coords.latitude,
           longitude: position.coords.longitude
         };
+        // Pick the nearest supported campus node rather than saving raw GPS coordinates.
         const nearestLocation = locations
           .map((location) => ({ ...location, distance: distanceKm(currentPoint, location) }))
           .sort((first, second) => first.distance - second.distance)[0];
@@ -189,6 +195,7 @@ export default function CartPreview({ items = [], isLoading = false, undoAvailab
   function checkout() {
     setCheckoutMessage("");
 
+    // Checkout sends the selected delivery node; backend handles cart snapshot and dispatch.
     postJson("/orders/checkout", {
       customerId: "USR-001",
       deliveryNodeId: delivery.deliveryNodeId

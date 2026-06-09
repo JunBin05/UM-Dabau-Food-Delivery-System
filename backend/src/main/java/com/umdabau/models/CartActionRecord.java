@@ -6,6 +6,10 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
+/**
+ * Optional persisted cart action record.
+ * It mirrors the kind of action CartStack stores in memory for undo behavior.
+ */
 @Entity
 @Table(name = "cart_actions")
 public class CartActionRecord {
