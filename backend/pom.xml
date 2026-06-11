@@ -32,6 +32,7 @@
         </dependency>
     </dependencies>
     <build>
+        <finalName>um-dabau-backend</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
