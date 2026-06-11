@@ -48,10 +48,10 @@ if not defined JAR_FILE (
 )
 
 if defined JAR_FILE (
-    start "UM Food Delivery - Backend" cmd /k title UM Food Delivery - Backend ^& echo Starting backend server using Java... ^& java -jar "%JAR_FILE%"
+    start "UM Food Delivery - Backend" cmd /k title UM Food Delivery - Backend ^& cd /d "%ROOT%" ^& echo Starting backend server using Java... ^& java -jar "%JAR_FILE%"
 ) else (
     echo WARNING: JAR file not found. Falling back to mvn if available.
-    start "UM Food Delivery - Backend" cmd /k cd /d "%BACKEND_DIR%" ^& echo Starting backend server ... ^& mvn spring-boot:run
+    start "UM Food Delivery - Backend" cmd /k cd /d "%ROOT%" ^& echo Starting backend server ... ^& mvn -f "%BACKEND_DIR%\pom.xml" spring-boot:run
 )
 
 echo.

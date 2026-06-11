@@ -26,7 +26,7 @@ if [ ! -f "$FRONTEND_DIR/package.json" ]; then
   exit 1
 fi
 
-BACKEND_CMD="cd '$BACKEND_DIR' && echo 'Starting backend server on http://localhost:8080' && mvn spring-boot:run"
+BACKEND_CMD="cd '$ROOT_DIR' && echo 'Starting backend server on http://localhost:8080' && mvn -f '$BACKEND_DIR/pom.xml' spring-boot:run"
 FRONTEND_CMD="cd '$FRONTEND_DIR' && echo 'Installing frontend dependencies if needed...' && npm install && echo 'Starting frontend server on $FRONTEND_URL' && npm start"
 
 start_new_terminal() {
