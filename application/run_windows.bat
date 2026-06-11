@@ -1,9 +1,9 @@
 @echo off
 setlocal
 
-set "ROOT=%~dp0"
-set "BACKEND_DIR=%ROOT%backend"
-set "FRONTEND_DIR=%ROOT%frontend"
+set "ROOT=%~dp0..\"
+set "BACKEND_DIR=%ROOT%source code\backend"
+set "FRONTEND_DIR=%ROOT%source code\frontend"
 set "FRONTEND_URL=http://localhost:5173"
 
 :: Add Maven to PATH if not already there

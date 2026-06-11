@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-BACKEND_DIR="$ROOT_DIR/backend"
-FRONTEND_DIR="$ROOT_DIR/frontend"
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+BACKEND_DIR="$ROOT_DIR/source code/backend"
+FRONTEND_DIR="$ROOT_DIR/source code/frontend"
 FRONTEND_URL="http://localhost:5173"
 
 echo "============================================================"

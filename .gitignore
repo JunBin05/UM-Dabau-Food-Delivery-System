@@ -1,14 +1,14 @@
 # Generated build artifacts
-backend/target/
-frontend/dist/
+source code/backend/target/
+source code/frontend/dist/
 node_modules/
 *.jar
 *.jar.original
 
 # Local runtime data and environment files
 data/
-backend/data/
-backend/data_old_test*/
-backend/data_backup_seed_test*/
+source code/backend/data/
+source code/backend/data_old_test*/
+source code/backend/data_backup_seed_test*/
 .env
 .env.local
