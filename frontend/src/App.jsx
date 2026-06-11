@@ -106,7 +106,7 @@ function normalizeCartItems(items) {
 
 export default function App() {
   // Role/page are persisted so refresh keeps the user in the same section.
-  const [role, setRole] = usePersistentState("um-dabau-role", "");
+  const [role, setRole] = usePersistentState("um-dabau-role", "customer");
   const [currentPage, setCurrentPage] = usePersistentState("um-dabau-page", "customer-dashboard");
   const [browseCategory, setBrowseCategory] = useState(() => getValidBrowseCategory(new URLSearchParams(window.location.search).get("category")));
   const [browseSearchTerm, setBrowseSearchTerm] = useState(() => new URLSearchParams(window.location.search).get("search") || "");
