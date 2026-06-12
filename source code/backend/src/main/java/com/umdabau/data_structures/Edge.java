@@ -4,7 +4,7 @@ import com.umdabau.models.GraphNode;
 
 /**
  * One road connection in the campus graph.
- * Edges are stored as linked nodes inside each vertex's adjacency list.
+ * Edges are stored as linked nodes from each GraphNode's firstEdge pointer.
  */
 public class Edge {
     GraphNode targetNode;    

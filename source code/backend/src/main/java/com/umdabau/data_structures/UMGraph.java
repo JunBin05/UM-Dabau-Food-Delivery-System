@@ -2,42 +2,38 @@ package com.umdabau.data_structures;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 
 import com.umdabau.models.GraphNode;
 import com.umdabau.models.RouteSummary;
 
 /**
  * Campus road graph used by the dispatch flow.
- * Vertices are UM places/waypoints, and each adjacency list stores the roads leaving that vertex.
+ * Vertices are UM places/waypoints, and each node points to its own linked list of outgoing roads.
  */
 public class UMGraph {
 
-    private GraphNode[] vertices;
-    private Edge[] adjacencyList;
-    private int numVertices;
+    private ArrayList<GraphNode> vertices;
 
     public UMGraph(int capacity) {
-        this.vertices = new GraphNode[capacity];
-        this.adjacencyList = new Edge[capacity];
-        this.numVertices = 0;
+        this.vertices = new ArrayList<>(capacity);
     }
 
     public void addVertex(GraphNode node) {
-        vertices[numVertices] = node;
-        numVertices++;
+        vertices.add(node);
     }
 
     private int getNodeIndex(GraphNode node) {
-        for (int i = 0; i < numVertices; i++) {
-            if (vertices[i] == node)
+        for (int i = 0; i < vertices.size(); i++) {
+            if (vertices.get(i) == node)
                 return i;
         }
         return -1;
     }
 
     private int getNodeIndex(String nodeId) {
-        for (int i = 0; i < numVertices; i++) {
-            if (vertices[i].nodeId.equals(nodeId))
+        for (int i = 0; i < vertices.size(); i++) {
+            if (vertices.get(i).nodeId.equals(nodeId))
                 return i;
         }
         return -1;
@@ -46,7 +42,7 @@ public class UMGraph {
     public GraphNode getNodeById(String nodeId) {
         int index = getNodeIndex(nodeId);
         if (index != -1) {
-            return vertices[index];
+            return vertices.get(index);
         }
         System.out.println("WARNING: Could not find node with ID: " + nodeId);
         return null;
@@ -57,7 +53,7 @@ public class UMGraph {
         int minIndex = -1;
 
         // Simple array-based Dijkstra step: choose the nearest node not finalized yet.
-        for (int v = 0; v < numVertices; v++) {
+        for (int v = 0; v < vertices.size(); v++) {
             if (!visited[v] && times[v] <= minTime) {
                 minTime = times[v];
                 minIndex = v;
@@ -121,11 +117,14 @@ public class UMGraph {
     }
 
     public void addEdge(GraphNode sourceNode, GraphNode targetNode, double distanceKm, double baseTimeMinutes) {
-        int sourceIndex = getNodeIndex(sourceNode);
+        if (sourceNode == null || targetNode == null || getNodeIndex(sourceNode) == -1) {
+            return;
+        }
+
         Edge newEdge = new Edge(targetNode, distanceKm, baseTimeMinutes);
-        // Insert at the head of this vertex's adjacency list.
-        newEdge.nextEdge = adjacencyList[sourceIndex];
-        adjacencyList[sourceIndex] = newEdge;
+        // Insert at the head of this node's linked list of outgoing roads.
+        newEdge.nextEdge = sourceNode.firstEdge;
+        sourceNode.firstEdge = newEdge;
     }
 
     public RouteSummary runDijkstra(String startNodeId, String endNodeId, String orderId, String assignedRiderId) {
@@ -136,12 +135,13 @@ public class UMGraph {
             throw new IllegalArgumentException("Start or End Node does not exist.");
         }
 
-        double[] shortestTimes = new double[numVertices];
-        double[] totalDistances = new double[numVertices];
-        boolean[] visited = new boolean[numVertices];
-        int[] previousNodes = new int[numVertices];
+        int totalVertices = vertices.size();
+        double[] shortestTimes = new double[totalVertices];
+        double[] totalDistances = new double[totalVertices];
+        boolean[] visited = new boolean[totalVertices];
+        int[] previousNodes = new int[totalVertices];
 
-        for (int i = 0; i < numVertices; i++) {
+        for (int i = 0; i < totalVertices; i++) {
             shortestTimes[i] = Double.MAX_VALUE;
             totalDistances[i] = Double.MAX_VALUE;
             visited[i] = false;
@@ -152,14 +152,14 @@ public class UMGraph {
         totalDistances[startIndex] = 0.0;
 
         // Dijkstra relaxes outgoing roads until the shortest known time to each node is final.
-        for (int count = 0; count < numVertices - 1; count++) {
+        for (int count = 0; count < totalVertices - 1; count++) {
             int u = getMinTimeVertex(shortestTimes, visited);
             if (u == -1)
                 break;
 
             visited[u] = true;
 
-            Edge currentEdge = adjacencyList[u];
+            Edge currentEdge = vertices.get(u).firstEdge;
             while (currentEdge != null) {
                 int v = getNodeIndex(currentEdge.targetNode.nodeId);
 
@@ -192,7 +192,7 @@ public class UMGraph {
         GraphNode[] finalPath = new GraphNode[stepCount];
         curr = endIndex;
         for (int i = stepCount - 1; i >= 0; i--) {
-            finalPath[i] = vertices[curr];
+            finalPath[i] = vertices.get(curr);
             curr = previousNodes[curr];
         }
 
@@ -758,21 +758,23 @@ public class UMGraph {
             writer.write("    }).addTo(map);\n\n");
 
             writer.write("    var nodes = {};\n");
-            for (int i = 0; i < numVertices; i++) {
-                if (vertices[i] != null) {
+            for (int i = 0; i < vertices.size(); i++) {
+                GraphNode vertex = vertices.get(i);
+                if (vertex != null) {
                     writer.write(String.format(
                             "    nodes['%s'] = { name: \"%s\", lat: %f, lng: %f, marker: null };\n",
-                            vertices[i].nodeId, vertices[i].name, vertices[i].latitude, vertices[i].longitude));
+                            vertex.nodeId, vertex.name, vertex.latitude, vertex.longitude));
                 }
             }
 
             writer.write("\n    var edges = [\n");
-            for (int i = 0; i < numVertices; i++) {
-                Edge current = adjacencyList[i];
+            for (int i = 0; i < vertices.size(); i++) {
+                GraphNode vertex = vertices.get(i);
+                Edge current = vertex.firstEdge;
                 while (current != null) {
                     writer.write(String.format(
                             "        { source: '%s', target: '%s' },\n",
-                            vertices[i].nodeId, current.targetNode.nodeId));
+                            vertex.nodeId, current.targetNode.nodeId));
                     current = current.nextEdge;
                 }
             }
